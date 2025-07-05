@@ -77,6 +77,8 @@ function search() {
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border-color);
   box-shadow: 0 2px 10px var(--shadow);
+
+  transition: all 0.3s ease;
 }
 
 .buttons {
