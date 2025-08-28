@@ -62,7 +62,7 @@ const isSameId = async () => {
   }
 
   try {
-    const res = await axios.get(`https://notebook.o-r.kr/api/user/${id.value}`);
+    const res = await axios.get(`https://blog.redeyes.dev/api/user/${id.value}`);
 
     if (res.data) {
       isSameUserId.value = true;
@@ -90,7 +90,7 @@ const signUp = async () => {
   }
 
   try {
-    const res = await axios.post("https://notebook.o-r.kr/api/signUp", {
+    const res = await axios.post("https://blog.redeyes.dev/api/signUp", {
       name: name.value,
       id: id.value,
       password: password.value,

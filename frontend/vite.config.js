@@ -13,6 +13,7 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+	base: "/",
   build: {
     // 청크 크기 최적화
     rollupOptions: {
@@ -25,6 +26,8 @@ export default defineConfig({
         }
       }
     },
+    outDir: "/var/www/html/blog",
+    emptyOutDir: true,
     // 청크 크기 경고 임계값 증가
     chunkSizeWarningLimit: 1000,
     // 소스맵 비활성화 (프로덕션 빌드 크기 줄이기)

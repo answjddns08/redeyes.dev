@@ -1,87 +1,79 @@
 <template>
-  <div class="flex justify-center min-h-screen">
-    <div class="flex w-full max-w-7xl px-4 gap-6">
-      <!-- 왼쪽: 태그 목록 -->
-      <div class="tags-wrapper">
-        <ShowTags />
-      </div>
+  <div class="flex w-full justify-center min-h-screen gap-6">
+    <!-- 왼쪽: 태그 목록 -->
+    <div class="tags-wrapper">
+      <ShowTags />
+    </div>
 
-      <!-- 가운데: 포스트 목록 -->
-      <div class="posts-main-wrapper">
-        <div v-if="posts.length > 0" class="posts-content-wrapper">
-          <!-- <VirtualScroll :items="displayedPosts" :item-height="216" :buffer="3">
-            <template #default="{ item: post }">
-              
-            </template>
-          </VirtualScroll> -->
-
-          <RouterLink
-            class="postContainer"
-            :to="`/posts/${post.folder}`"
-            :key="post.folder"
-            v-for="post in displayedPosts"
-          >
-            <div class="postImageBlock">
-              <img
-                v-if="post.coverImg"
-                :src="getImageUrl(post.folder, post.coverImg)"
-                alt="cover img"
-                class="w-full h-full object-cover"
-                loading="lazy"
+    <!-- 가운데: 포스트 목록 -->
+    <div class="posts-main-wrapper">
+      <div v-if="posts.length > 0" class="posts-content-wrapper">
+        <RouterLink
+          class="postContainer"
+          :to="`/posts/${post.folder}`"
+          :key="post.folder"
+          v-for="post in displayedPosts"
+        >
+          <div class="postImageBlock">
+            <img
+              v-if="post.coverImg"
+              :src="getImageUrl(post.folder, post.coverImg)"
+              alt="cover img"
+              class="w-full h-full object-cover"
+              loading="lazy"
+            />
+            <div v-else class="placeholder-default">
+              <font-awesome-icon
+                :icon="['fas', 'image']"
+                size="2xl"
+                style="color: var(--bg-primary)"
               />
-              <div v-else class="placeholder-default">
-                <font-awesome-icon
-                  :icon="['fas', 'image']"
-                  size="2xl"
-                  style="color: var(--bg-primary)"
-                />
+            </div>
+          </div>
+          <div class="px-3 py-3 gap-1 flex flex-col h-full justify-center">
+            <span class="text-2xl font-bold">{{ post.title }}</span>
+            <span class="flex grow">
+              {{ post.summary.slice(0, 115) }}
+            </span>
+            <div class="flex gap-3">
+              <div class="tagBlock" v-for="tag in post.tag" :key="tag" v-show="tag">
+                {{ tag }}
               </div>
             </div>
-            <div class="px-3 py-3 gap-1 flex flex-col h-full justify-center">
-              <span class="text-2xl font-bold">{{ post.title }}</span>
-              <span class="flex grow">
-                {{ post.summary.slice(0, 115) }}
-              </span>
-              <div class="flex gap-3">
-                <div class="tagBlock" v-for="tag in post.tag" :key="tag" v-show="tag">
-                  {{ tag }}
-                </div>
-              </div>
-              <div class="flex gap-1.5" style="color: var(--text-secondary)">
-                <div>
-                  <span>redeyes - {{ post.date }}</span>
-                </div>
+            <div class="flex gap-1.5" style="color: var(--text-secondary)">
+              <div>
+                <span>redeyes - {{ post.date }}</span>
               </div>
             </div>
-          </RouterLink>
-
-          <!-- 자동 로딩을 위한 트리거 요소 -->
-          <div v-if="hasMorePosts && !isLoading" ref="autoLoadTrigger" class="auto-load-trigger">
-            <!-- 이 요소가 뷰포트에 들어오면 자동으로 더 로드 -->
           </div>
+        </RouterLink>
 
-          <!-- 로딩 인디케이터 -->
-          <div v-if="isLoading" class="loading-indicator">
-            <font-awesome-icon :icon="['fas', 'spinner']" spin size="2xl" />
-            <span>포스트를 불러오는 중...</span>
-          </div>
-
-          <!-- 모든 포스트 로드 완료 메시지 -->
-          <div v-if="!hasMorePosts && posts.length > 0" class="end-message">
-            <p>모든 포스트를 확인했습니다! 🎉</p>
-          </div>
+        <!-- 자동 로딩을 위한 트리거 요소 -->
+        <div v-if="hasMorePosts && !isLoading" ref="autoLoadTrigger" class="auto-load-trigger">
+          <!-- 이 요소가 뷰포트에 들어오면 자동으로 더 로드 -->
         </div>
 
-        <!-- 포스트가 없을 때 메시지 -->
-        <div v-if="posts.length == 0" class="flex justify-center mt-20 posts-content-wrapper">
-          <p>흠.. 포스트가 없나 보네요 ¯\_(ツ)_/¯</p>
+        <!-- 로딩 인디케이터 -->
+        <div v-if="isLoading" class="loading-indicator">
+          <font-awesome-icon :icon="['fas', 'spinner']" spin size="2xl" />
+          <span>포스트를 불러오는 중...</span>
+        </div>
+
+        <!-- 모든 포스트 로드 완료 메시지 -->
+        <div v-if="!hasMorePosts && posts.length > 0" class="end-message">
+          <p>모든 포스트를 확인했습니다! 🎉</p>
         </div>
       </div>
 
-      <!-- 오른쪽: 작가 정보 -->
-      <div class="author-wrapper">
-        <AuthorField />
+      <!-- 포스트가 없을 때 메시지 -->
+      <div v-if="posts.length == 0" class="flex justify-center mt-20 posts-content-wrapper">
+        <p>흠.. 포스트가 없나 보네요 ¯\_(ツ)_/¯</p>
       </div>
+    </div>
+
+    <!-- 오른쪽: 작가 정보 -->
+    <div class="author-wrapper">
+      <AuthorField />
     </div>
 
     <!-- 맨 위로 가기 버튼 -->
@@ -100,7 +92,6 @@ import axios from "axios";
 import ShowTags from "./showTags.vue";
 import { usePostStore } from "@/stores/postStore";
 import AuthorField from "./authorField.vue";
-//import VirtualScroll from "./VirtualScroll.vue";
 
 /**
  * @typedef {Object} Post
@@ -141,13 +132,13 @@ const hasMorePosts = computed(() => {
  * @param {string} imageName
  */
 const getImageUrl = (postFolder, imageName) => {
-  return `https://notebook.o-r.kr/api/posts/images/${postFolder}/${imageName}`;
+  return `https://blog.redeyes.dev/api/posts/images/${postFolder}/${imageName}`;
 };
 
 /** get Posts */
 async function getPosts() {
   if (route.query.search || !postStore.posts.length) {
-    const { data } = await axios.get("https://notebook.o-r.kr/api/posts/", {
+    const { data } = await axios.get("https://blog.redeyes.dev/api/posts/", {
       params: {
         search: route.query.search,
       },
@@ -296,7 +287,7 @@ p {
 }
 
 .author-wrapper {
-  width: 15rem;
+  width: 25rem;
   flex-shrink: 0;
   position: sticky;
 
@@ -305,7 +296,6 @@ p {
   margin-top: 7.5rem;
 
   padding-top: 2.5rem;
-  padding-left: 10rem;
 
   height: fit-content;
 }

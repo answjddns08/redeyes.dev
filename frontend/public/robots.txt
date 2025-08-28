@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+# 사이트맵 위치
+Sitemap: https://blog.redeyes.dev/sitemap.xml
+
+# 크롤링 속도 조절 (1초마다 한 번)
+Crawl-delay: 1
+
+# 특정 페이지 제외 (필요시)
+# Disallow: /admin/
+# Disallow: /private/

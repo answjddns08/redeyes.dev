@@ -1,5 +1,8 @@
 <template>
   <main>
+    <!-- 구조화된 데이터 (JSON-LD) -->
+    <script type="application/ld+json" v-if="post.title" v-html="structuredData"></script>
+
     <div class="flex w-full justify-center">
       <div class="flex flex-col w-1/2">
         <!-- margin space -->
@@ -35,7 +38,7 @@
           @update:headings="headings = $event"
         />
         <div v-else class="text-center py-10">
-          <p class="loading" >로딩 중</p>
+          <p class="loading">로딩 중</p>
         </div>
 
         <!-- other posts -->
@@ -83,8 +86,9 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from "vue";
+import { onMounted, ref, watch, computed } from "vue";
 import { useRoute, RouterLink, useRouter } from "vue-router";
+import { useHead } from "@vueuse/head";
 import axios from "axios";
 import { usePostStore } from "@/stores/postStore";
 import HeadingList from "@/components/HeadingList.vue";
@@ -125,6 +129,128 @@ const nextPost = ref(null);
 
 const headings = ref([]);
 
+// 구조화된 데이터 생성
+const structuredData = computed(() => {
+  if (!post.value.title) return '';
+
+  return JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": post.value.title,
+    "description": post.value.content
+      ? post.value.content.substring(0, 160).replace(/[#*`]/g, '').trim()
+      : '',
+    "author": {
+      "@type": "Person",
+      "name": "redeyes",
+      "url": "https://blog.redeyes.dev"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Kellog Blog",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://blog.redeyes.dev/eye.png"
+      }
+    },
+    "datePublished": post.value.date,
+    "dateModified": post.value.date,
+    "image": post.value.coverImg
+      ? `https://blog.redeyes.dev/api/posts/${post.value.folder}/${post.value.coverImg}`
+      : "https://blog.redeyes.dev/eye.png",
+    "url": `https://blog.redeyes.dev/posts/${route.params.folder}`,
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": `https://blog.redeyes.dev/posts/${route.params.folder}`
+    },
+    "keywords": post.value.tag ? post.value.tag.join(', ') : '',
+    "articleSection": "Technology"
+  });
+});
+
+// SEO를 위한 동적 메타태그 설정
+useHead({
+  title: () => post.value.title ? `${post.value.title} - Kellog Blog` : 'Kellog Blog',
+  meta: [
+    {
+      name: 'description',
+      content: () => post.value.content
+        ? post.value.content.substring(0, 160).replace(/[#*`]/g, '').trim() + '...'
+        : '개인 블로그 플랫폼 - 기술, 개발, 일상을 공유하는 공간'
+    },
+    {
+      name: 'keywords',
+      content: () => post.value.tag && post.value.tag.length > 0
+        ? post.value.tag.join(', ') + ', 블로그, 개발, 기술'
+        : '블로그, 개발, 기술, 프로그래밍'
+    },
+    // Open Graph
+    {
+      property: 'og:title',
+      content: () => post.value.title || 'Kellog Blog'
+    },
+    {
+      property: 'og:description',
+      content: () => post.value.content
+        ? post.value.content.substring(0, 160).replace(/[#*`]/g, '').trim() + '...'
+        : '개인 블로그 플랫폼 - 기술, 개발, 일상을 공유하는 공간'
+    },
+    {
+      property: 'og:type',
+      content: 'article'
+    },
+    {
+      property: 'og:url',
+      content: () => `https://blog.redeyes.dev/posts/${route.params.folder}`
+    },
+    {
+      property: 'og:image',
+      content: () => post.value.coverImg
+        ? `https://blog.redeyes.dev/api/posts/${post.value.folder}/${post.value.coverImg}`
+        : 'https://blog.redeyes.dev/eye.png'
+    },
+    {
+      property: 'article:author',
+      content: 'redeyes'
+    },
+    {
+      property: 'article:published_time',
+      content: () => post.value.date
+    },
+    {
+      property: 'article:tag',
+      content: () => post.value.tag ? post.value.tag.join(', ') : ''
+    },
+    // Twitter Card
+    {
+      name: 'twitter:card',
+      content: 'summary_large_image'
+    },
+    {
+      name: 'twitter:title',
+      content: () => post.value.title || 'Kellog Blog'
+    },
+    {
+      name: 'twitter:description',
+      content: () => post.value.content
+        ? post.value.content.substring(0, 160).replace(/[#*`]/g, '').trim() + '...'
+        : '개인 블로그 플랫폼 - 기술, 개발, 일상을 공유하는 공간'
+    },
+    {
+      name: 'twitter:image',
+      content: () => post.value.coverImg
+        ? `https://blog.redeyes.dev/api/posts/${post.value.folder}/${post.value.coverImg}`
+        : 'https://blog.redeyes.dev/eye.png'
+    }
+  ],
+  link: [
+    {
+      rel: 'canonical',
+      href: () => `https://blog.redeyes.dev/posts/${route.params.folder}`
+    }
+  ]
+});
+
 function navigateToPost(post) {
   if (!post) return;
 
@@ -132,7 +258,7 @@ function navigateToPost(post) {
 }
 
 async function getPostData(folder) {
-  const { data } = await axios.get(`https://notebook.o-r.kr/api/posts/${folder}`);
+  const { data } = await axios.get(`https://blog.redeyes.dev/api/posts/${folder}`);
 
   headings.value = [];
 

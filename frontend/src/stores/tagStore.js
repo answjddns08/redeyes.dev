@@ -59,7 +59,7 @@ export const useTagStore = defineStore("tags", () => {
 
     try {
       //console.log("Fetching tags from server...");
-      const { data } = await axios.get("https://notebook.o-r.kr/api/tags/");
+      const { data } = await axios.get("https://blog.redeyes.dev/api/tags/");
 
       tags.value = data || [];
       lastFetched.value = Date.now();
