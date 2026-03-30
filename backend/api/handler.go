@@ -30,7 +30,6 @@ func New(logger *log.Logger) *API {
 }
 
 func (api *API) Register(mux *http.ServeMux) {
-	mux.HandleFunc("/api/health", api.handleHealth)
 	mux.HandleFunc("/api/posts", api.handlePosts)
 	mux.HandleFunc("/api/posts/", api.handlePost)
 
@@ -41,17 +40,6 @@ func (api *API) Register(mux *http.ServeMux) {
 	}
 
 	mux.Handle("/api/posts/images/", http.StripPrefix("/api/posts/images/", http.FileServer(http.Dir(postsDir))))
-}
-func (api *API) handleHealth(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed")
-		return
-	}
-
-	WriteJSON(w, http.StatusOK, map[string]string{
-		"status": "ok",
-		"test":   "test",
-	})
 }
 
 func WriteJSON(w http.ResponseWriter, status int, payload interface{}) {
