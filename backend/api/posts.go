@@ -89,7 +89,12 @@ func (api *API) handlePost(w http.ResponseWriter, r *http.Request) {
 
 	folder := strings.TrimPrefix(r.URL.Path, "/api/posts/")
 	folder = strings.TrimSpace(folder)
-	if folder == "" || strings.Contains(folder, "/") {
+	if folder == "" {
+		api.handlePosts(w, r)
+		return
+	}
+
+	if strings.Contains(folder, "/") {
 		WriteError(w, http.StatusNotFound, "post_not_found")
 		return
 	}

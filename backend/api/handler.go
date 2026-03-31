@@ -32,6 +32,8 @@ func New(logger *log.Logger) *API {
 func (api *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/posts", api.handlePosts)
 	mux.HandleFunc("/api/posts/", api.handlePost)
+	mux.HandleFunc("/api/tags", api.handleTags)
+	mux.HandleFunc("/api/tags/", api.handleTags)
 
 	postsDir, err := postsDirPath()
 	if err != nil {
