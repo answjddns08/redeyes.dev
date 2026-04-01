@@ -1,5 +1,5 @@
 <template>
-  <div class="flex w-full justify-center min-h-screen gap-6">
+  <div class="posts-layout">
     <!-- 왼쪽: 태그 목록 -->
     <div class="tags-wrapper">
       <ShowTags />
@@ -30,20 +30,18 @@
               />
             </div>
           </div>
-          <div class="px-3 py-3 gap-1 flex flex-col h-full justify-center">
-            <span class="text-2xl font-bold">{{ post.title }}</span>
-            <span class="flex grow">
+          <div class="post-meta-block">
+            <span class="post-title">{{ post.title }}</span>
+            <span class="post-summary">
               {{ post.summary.slice(0, 115) }}
             </span>
-            <div class="flex gap-3">
+            <div class="post-tags">
               <div class="tagBlock" v-for="tag in post.tag" :key="tag" v-show="tag">
                 {{ tag }}
               </div>
             </div>
-            <div class="flex gap-1.5" style="color: var(--text-secondary)">
-              <div>
-                <span>redeyes - {{ post.date }}</span>
-              </div>
+            <div class="post-foot">
+              <span>redeyes · {{ post.date }}</span>
             </div>
           </div>
         </RouterLink>
@@ -66,7 +64,7 @@
       </div>
 
       <!-- 포스트가 없을 때 메시지 -->
-      <div v-if="posts.length == 0" class="flex justify-center mt-20 posts-content-wrapper">
+      <div v-if="posts.length == 0" class="empty-state posts-content-wrapper">
         <p>흠.. 포스트가 없나 보네요 ¯\_(ツ)_/¯</p>
       </div>
     </div>
@@ -194,7 +192,7 @@ function setupIntersectionObserver() {
     {
       rootMargin: "200px", // 200px 전에 미리 로딩 (더 부드러운 경험)
       threshold: 0.1,
-    }
+    },
   );
 }
 
@@ -246,21 +244,27 @@ p {
   font-optical-sizing: auto;
   font-weight: 500;
   font-style: normal;
-
-  font-size: 2rem;
-  line-height: 1.75rem;
+  font-size: 1.45rem;
+  line-height: 1.55;
 }
 
-/* 3단 레이아웃 래퍼들 */
+.posts-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 320px;
+  gap: 1rem;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: 100vh;
+}
+
 .posts-main-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
-
-  margin-top: 2.5rem;
-
-  flex: 1; /* 나머지 공간 차지 */
-  min-width: 0; /* 자식 요소가 부모의 너비를 넘지 않도록 */
+  margin-top: 1.5rem;
+  flex: 1;
+  min-width: 0;
   max-width: 47rem;
 }
 
@@ -269,102 +273,85 @@ p {
   max-width: 47rem;
 }
 
-/* 태그 및 작성자 래퍼 - 사이드바로 고정 */
 .tags-wrapper {
-  width: 15rem;
-
+  width: 100%;
   flex-shrink: 0;
-
   position: sticky;
-
-  top: var(--navbar-height);
-
-  margin-top: 7.5rem;
-
-  padding-top: 5rem;
-
+  top: calc(var(--navbar-height) + 1rem);
+  margin-top: 0.5rem;
+  padding-top: 1rem;
   height: fit-content;
 }
 
 .author-wrapper {
-  width: 25rem;
+  width: 100%;
   flex-shrink: 0;
   position: sticky;
-
-  top: var(--navbar-height);
-
-  margin-top: 7.5rem;
-
-  padding-top: 2.5rem;
-
+  top: calc(var(--navbar-height) + 1rem);
+  margin-top: 0.5rem;
+  padding-top: 1rem;
   height: fit-content;
-}
-
-.sortMenu {
-  position: absolute;
-
-  top: 1.5rem;
-  left: 45rem;
-
-  padding: 0.5rem;
-
-  color: #727272;
-  font-weight: 700;
-  font-size: 0.875rem;
-
-  background-color: #b3b3b3;
-  border-radius: 0.5rem;
-
-  white-space: nowrap;
-  /* 줄바꿈 끄기 */
-
-  transition: ease-out 0.25s;
-}
-
-.sortMenu:hover {
-  background-color: #858585;
 }
 
 .postContainer {
   display: flex;
-
-  align-items: center;
-
+  align-items: stretch;
   width: 100%;
   max-width: 47rem;
-  height: 11.25rem;
-
+  min-height: 11.5rem;
+  background-color: var(--bg-secondary);
   border-radius: 1rem;
-  border: 2px solid transparent;
-
+  border: 1px solid var(--border-color);
   margin-bottom: 1.5rem;
-
   transition: all 0.3s ease;
   position: relative;
 }
 
 .postContainer:hover {
-  background-color: var(--border-color);
-  border: 2px solid var(--accent-color);
+  border-color: var(--accent-color);
   transform: translateY(-2px);
-  box-shadow: 0 4px 15px var(--shadow);
+  box-shadow: 0 10px 28px var(--shadow);
 }
 
 .postImageBlock {
-  background-color: var(--text-secondary);
-
+  background-color: var(--accent-soft);
   position: relative;
-
-  border-radius: 0.75rem;
-
+  border-radius: 0.85rem;
   overflow: hidden;
-
-  margin-left: 0.625rem;
-
-  width: 10rem;
-  height: 10rem;
-
+  margin: 0.75rem;
+  width: 9.6rem;
+  min-height: calc(100% - 1.5rem);
   flex-shrink: 0;
+}
+
+.post-meta-block {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.85rem 0.85rem 0.85rem 0;
+}
+
+.post-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.post-summary {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.post-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.post-foot {
+  color: var(--text-secondary);
+  font-size: 0.92rem;
 }
 
 .placeholder-default {
@@ -376,23 +363,17 @@ p {
 
 .tagBlock {
   border-width: 0.1rem;
-
   border-color: var(--text-secondary);
-
   color: var(--text-secondary);
-
-  font-size: 1rem;
-
-  padding-inline: 0.25rem;
-
-  border-radius: 0.5rem;
+  font-size: 0.84rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
 }
 
 .tagBlock::before {
   content: "# ";
 }
 
-/* 로딩 인디케이터 */
 .loading-indicator {
   display: flex;
   flex-direction: column;
@@ -407,11 +388,10 @@ p {
   font-weight: 500;
 }
 
-/* 완료 메시지 */
 .end-message {
   text-align: center;
   margin: 3rem 0;
-  padding: 2rem;
+  padding: 1.25rem;
   background-color: var(--bg-secondary);
   border-radius: 1rem;
   border: 1px solid var(--border-color);
@@ -424,48 +404,41 @@ p {
   margin: 0;
 }
 
-/* 자동 로딩 트리거 */
 .auto-load-trigger {
-  height: 50px; /* 더 큰 트리거 영역 */
+  height: 50px;
   width: 100%;
   margin: 2rem 0;
 }
 
-/* 맨 위로 가기 버튼 */
 .scroll-to-top-btn {
   position: fixed;
-
   bottom: 2rem;
-
   right: 2rem;
   width: 3rem;
   height: 3rem;
-
   background-color: var(--accent-color);
-  color: var(--border-color);
-
+  color: var(--bg-secondary);
   border: none;
   border-radius: 50%;
-
   cursor: pointer;
-
   box-shadow: 0 4px 15px var(--shadow);
-
   transition: all 0.3s ease-in-out;
-
   z-index: 100;
 }
 
 .scroll-to-top-btn:hover {
-  background-color: var(--border-color);
-  color: var(--accent-color);
-
+  background-color: var(--text-primary);
+  color: var(--bg-primary);
   transform: translateY(-2px);
-
   box-shadow: 0 6px 20px var(--shadow);
 }
 
-/* 스크롤 버튼 애니메이션 */
+.empty-state {
+  display: flex;
+  justify-content: center;
+  margin-top: 4rem;
+}
+
 .scroll-btn-enter-active,
 .scroll-btn-leave-active {
   transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
@@ -489,5 +462,54 @@ p {
 .scroll-btn-leave-to {
   opacity: 0;
   transform: translateY(30px) scale(0.8);
+}
+
+@media (max-width: 1180px) {
+  .posts-layout {
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .author-wrapper {
+    display: none;
+  }
+
+  .tags-wrapper {
+    position: sticky;
+    top: calc(var(--navbar-height) + 0.75rem);
+    margin-top: 0.5rem;
+    padding-top: 0;
+  }
+
+  .posts-main-wrapper,
+  .posts-content-wrapper {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .tags-wrapper,
+  .author-wrapper {
+    display: none;
+  }
+
+  .posts-main-wrapper,
+  .posts-content-wrapper {
+    max-width: 100%;
+  }
+
+  .postContainer {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .postImageBlock {
+    width: calc(100% - 1.5rem);
+    height: 10.5rem;
+  }
+
+  .post-meta-block {
+    padding: 0 0.85rem 0.95rem;
+  }
 }
 </style>

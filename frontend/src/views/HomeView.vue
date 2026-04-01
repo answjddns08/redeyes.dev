@@ -1,5 +1,5 @@
 <template>
-  <main>
+  <main class="home-wrap">
     <ShowPosts />
   </main>
 </template>
@@ -10,73 +10,84 @@ import ShowPosts from "@/components/ShowPosts.vue";
 
 // 홈페이지 SEO 메타태그 설정
 useHead({
-  title: 'Kellog Blog - 개발 블로그',
+  title: "Kellog Blog - 개발 블로그",
   meta: [
     {
-      name: 'description',
-      content: '개발자 redeyes의 개인 블로그입니다. 웹 개발, 프로그래밍, 기술 트렌드에 대한 글을 공유합니다.'
+      name: "description",
+      content:
+        "개발자 redeyes의 개인 블로그입니다. 웹 개발, 프로그래밍, 기술 트렌드에 대한 글을 공유합니다.",
     },
     {
-      name: 'keywords',
-      content: '개발 블로그, 웹개발, 프로그래밍, Vue.js, JavaScript, Node.js, 기술 블로그'
+      name: "keywords",
+      content: "개발 블로그, 웹개발, 프로그래밍, Vue.js, JavaScript, Node.js, 기술 블로그",
     },
     // Open Graph
     {
-      property: 'og:title',
-      content: 'Kellog Blog - 개발 블로그'
+      property: "og:title",
+      content: "Kellog Blog - 개발 블로그",
     },
     {
-      property: 'og:description',
-      content: '개발자 redeyes의 개인 블로그입니다. 웹 개발, 프로그래밍, 기술 트렌드에 대한 글을 공유합니다.'
+      property: "og:description",
+      content:
+        "개발자 redeyes의 개인 블로그입니다. 웹 개발, 프로그래밍, 기술 트렌드에 대한 글을 공유합니다.",
     },
     {
-      property: 'og:type',
-      content: 'website'
+      property: "og:type",
+      content: "website",
     },
     {
-      property: 'og:url',
-      content: 'https://blog.redeyes.dev'
+      property: "og:url",
+      content: "https://blog.redeyes.dev",
     },
     // Twitter Card
     {
-      name: 'twitter:card',
-      content: 'summary'
+      name: "twitter:card",
+      content: "summary",
     },
     {
-      name: 'twitter:title',
-      content: 'Kellog Blog - 개발 블로그'
+      name: "twitter:title",
+      content: "Kellog Blog - 개발 블로그",
     },
     {
-      name: 'twitter:description',
-      content: '개발자 redeyes의 개인 블로그입니다. 웹 개발, 프로그래밍, 기술 트렌드에 대한 글을 공유합니다.'
-    }
-  ]
+      name: "twitter:description",
+      content:
+        "개발자 redeyes의 개인 블로그입니다. 웹 개발, 프로그래밍, 기술 트렌드에 대한 글을 공유합니다.",
+    },
+  ],
 });
 </script>
 
 <style scoped>
-.sortMenu {
-  position: absolute;
-
-  top: 1.5rem;
-  left: 45rem;
-
-  padding: 0.5rem;
-
-  color: #727272;
-  font-weight: 700;
-  font-size: 0.875rem;
-
-  background-color: #b3b3b3;
-  border-radius: 0.5rem;
-
-  white-space: nowrap;
-  /* 줄바꿈 끄기 */
-
-  transition: ease-out 0.25s;
+.home-wrap {
+  width: min(1200px, 94vw);
+  margin: 1.5rem auto 0;
 }
 
-.sortMenu:hover {
-  background-color: #858585;
+.home-hero {
+  margin: 1rem auto 1.75rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--accent-soft) 100%);
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+h1 {
+  margin: 0.5rem 0 0.35rem;
+  font-size: clamp(1.3rem, 3vw, 1.9rem);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.description {
+  margin: 0;
+  color: var(--text-secondary);
 }
 </style>

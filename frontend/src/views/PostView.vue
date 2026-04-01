@@ -3,20 +3,19 @@
     <!-- 구조화된 데이터 (JSON-LD) -->
     <div type="application/ld+json" class="hidden" v-if="post.title" v-html="structuredData"></div>
 
-    <div class="flex w-full justify-center">
-      <div class="flex flex-col w-1/2">
-        <!-- margin space -->
-        <div class="mb-10"></div>
+    <div class="post-wrap">
+      <div class="post-shell">
+        <div class="top-spacer"></div>
 
         <!-- title and extra -->
-        <div class="flex flex-col w-full gap-4 mb-10">
-          <span class="text-5xl font-bold">{{ post.title }}</span>
-          <div class="flex gap-2" style="color: var(--text-secondary)">
+        <div class="title-section">
+          <span class="post-title">{{ post.title }}</span>
+          <div class="meta-row">
             <span>redeyes</span>
             <span>-</span>
             <span>{{ post.date }}</span>
           </div>
-          <div class="flex gap-3">
+          <div class="tag-row">
             <RouterLink
               :to="{ path: '/', query: { search: '#' + tag } }"
               class="tagBlock"
@@ -42,7 +41,7 @@
         </div>
 
         <!-- other posts -->
-        <div class="flex justify-between w-full py-3 gap-3 mb-5">
+        <div class="post-nav-row">
           <!-- Previous Post Button -->
           <button
             class="postButton"
@@ -290,16 +289,59 @@ watch(
 </script>
 
 <style scoped>
+.post-wrap {
+  width: min(840px, 92vw);
+  margin: 0 auto;
+}
+
+.post-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.top-spacer {
+  margin-bottom: 1.25rem;
+}
+
+.title-section {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+  padding: 1.35rem;
+  border-radius: 1rem;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+}
+
+.post-title {
+  font-size: clamp(1.8rem, 3.8vw, 2.7rem);
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.meta-row {
+  display: flex;
+  gap: 0.45rem;
+  color: var(--text-secondary);
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
 .tagBlock {
   border-width: 0.1rem;
-
-  padding-inline: 0.35rem;
-
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+  padding: 0.2rem 0.65rem;
   font-weight: 500;
-
-  font-size: 1rem;
-
-  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  border-radius: 999px;
 
   transition: ease-out 0.25s;
 }
@@ -310,29 +352,35 @@ watch(
 }
 
 .tagBlock:hover {
-  background-color: var(--shadow);
+  background-color: var(--accent-soft);
   color: var(--accent-color);
+}
+
+.post-nav-row {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 1rem 0;
+  gap: 0.8rem;
+  margin-bottom: 1.25rem;
 }
 
 .postButton {
   display: flex;
-
   flex: 1;
-
   align-items: center;
-
   gap: 0.5rem;
-  padding: 0.5rem;
-
-  border-width: 0.15rem;
-  border-radius: 0.5rem;
-
+  padding: 0.8rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  color: var(--text-primary);
   transition: ease-out 0.25s;
 }
 
 .postButton:hover {
-  background-color: var(--bg-secondary);
-  color: var(--text-primary);
+  border-color: var(--accent-color);
+  transform: translateY(-1px);
 }
 
 .postButton:disabled {
@@ -340,7 +388,7 @@ watch(
 }
 
 .disabled-button {
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-primary);
   color: var(--text-secondary);
   cursor: not-allowed;
 }
@@ -365,6 +413,16 @@ watch(
   }
   66% {
     content: "...";
+  }
+}
+
+@media (max-width: 768px) {
+  .post-nav-row {
+    flex-direction: column;
+  }
+
+  .postButton {
+    justify-content: space-between;
   }
 }
 </style>

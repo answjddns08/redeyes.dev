@@ -1,18 +1,13 @@
 <template>
   <div class="navbar-fixed">
-    <!-- left elements -->
-    <div class="flex px-10 gap-10 items-center">
-      <RouterLink class="buttons font-bold text-4xl" to="/">Kellog</RouterLink>
+    <div class="left-group">
+      <RouterLink class="brand" to="/">Kellog</RouterLink>
       <form @submit.prevent="search">
-        <label
-          for="default-search"
-          class="mb-2 text-sm font-medium text-gray-900 sr-only dark:text-white"
-          >Search</label
-        >
+        <label for="default-search" class="sr-only">Search</label>
         <input
           type="search"
           id="default-search"
-          placeholder="search something..."
+          placeholder="찾고 싶은 글..."
           v-model="searchForm"
         />
         <button type="submit" class="search-btn">
@@ -21,23 +16,16 @@
       </form>
     </div>
 
-    <!-- right elements -->
-    <div class="flex gap-10 px-10 items-center">
-      <RouterLink to="/" class="font-bold text-2xl buttons">Blog</RouterLink>
-      <RouterLink to="/about" class="font-bold text-2xl buttons">About</RouterLink>
-      <button @click="darkModeStore.toggleDarkMode">
+    <div class="right-group">
+      <RouterLink to="/" class="buttons">Blog</RouterLink>
+      <RouterLink to="/about" class="buttons">About</RouterLink>
+      <button class="theme-btn" @click="darkModeStore.toggleDarkMode" aria-label="theme toggle">
         <font-awesome-icon
           v-if="darkModeStore.isDarkMode"
           :icon="['fas', 'sun']"
-          size="2xl"
-          class="hover:text-yellow-500 transition"
+          class="theme-icon"
         />
-        <font-awesome-icon
-          v-else
-          :icon="['fas', 'moon']"
-          size="2xl"
-          class="hover:text-blue-300 transition"
-        />
+        <font-awesome-icon v-else :icon="['fas', 'moon']" class="theme-icon" />
       </button>
     </div>
   </div>
@@ -61,30 +49,47 @@ function search() {
 <style scoped>
 .navbar-fixed {
   position: fixed;
-
   top: 0;
   left: 0;
   right: 0;
-
-  z-index: 10;
+  z-index: 20;
 
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5rem;
+  gap: 1rem;
+  min-height: var(--navbar-height);
+  padding: 0.75rem 1.5rem;
 
   background-color: var(--bg-primary);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 2px 10px var(--shadow);
+  box-shadow: 0 8px 24px var(--shadow);
 
   transition: all 0.3s ease;
 }
 
-.buttons {
-  color: inherit;
-  text-decoration: none;
+.left-group,
+.right-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
 
+.left-group {
+  min-width: 0;
+}
+
+.brand {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.buttons {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
   transition: all 0.3s ease;
 }
 
@@ -94,53 +99,92 @@ function search() {
 
 form {
   display: flex;
-
-  gap: 0.75rem;
-
-  padding: 0.5rem;
-
-  border-bottom: 0.25rem solid var(--text-primary);
+  align-items: center;
+  gap: 0.5rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 0.4rem 0.4rem 0.4rem 0.8rem;
 }
 
 input {
-  border-radius: 0.5rem;
-
+  width: min(32vw, 260px);
+  border: none;
+  background: transparent;
   color: var(--text-primary);
-
-  padding: 0rem 0.25rem;
-
-  font-size: medium;
-
-  outline-width: 0px;
+  font-size: 0.95rem;
+  outline: none;
 }
 
 .search-btn {
-  padding: 0.5rem;
-  font-size: 0.875rem;
-
-  color: var(--text-primary);
-
-  transition: all 0.3s ease;
-
-  flex-shrink: 0;
-
+  width: 2rem;
+  height: 2rem;
   aspect-ratio: 1;
-
   display: flex;
-
   align-items: center;
   justify-content: center;
-
-  min-height: 2.25rem;
-  min-width: 2.25rem;
-
+  color: var(--text-secondary);
   border-radius: 50%;
-
   border: none;
+  background: transparent;
   cursor: pointer;
+  transition: all 0.3s ease;
 }
 
 .search-btn:hover {
-  background-color: var(--accent-color); /* blue-700 */
+  background-color: var(--accent-soft);
+  color: var(--accent-color);
+}
+
+.theme-btn {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.theme-btn:hover {
+  color: var(--accent-color);
+  transform: translateY(-1px);
+}
+
+.theme-icon {
+  font-size: 1rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 768px) {
+  .navbar-fixed {
+    padding: 0.75rem 1rem;
+  }
+
+  .brand {
+    font-size: 1.25rem;
+  }
+
+  .buttons {
+    display: none;
+  }
+
+  input {
+    width: 36vw;
+  }
 }
 </style>
