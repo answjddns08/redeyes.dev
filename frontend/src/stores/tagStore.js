@@ -5,7 +5,7 @@ import axios from "axios";
 export const useTagStore = defineStore("tags", () => {
   // State
   const tags = ref([]);
-  const selectedTag = ref(null);
+  const selectedTags = ref([]);
   const lastFetched = ref(null);
   const cacheExpiry = ref(24 * 60 * 60 * 1000); // 24시간 캐시 유효시간
 
@@ -81,7 +81,7 @@ export const useTagStore = defineStore("tags", () => {
   };
 
   const initializeTags = async () => {
-    selectedTag.value = null;
+    selectedTags.value = [];
 
     // 먼저 localStorage에서 로드 시도
     const loadedFromCache = loadFromLocalStorage();
@@ -97,7 +97,12 @@ export const useTagStore = defineStore("tags", () => {
   };
 
   const toggleTag = (tag) => {
-    selectedTag.value = selectedTag.value === tag ? null : tag;
+    const index = selectedTags.value.indexOf(tag);
+    if (index > -1) {
+      selectedTags.value.splice(index, 1);
+    } else {
+      selectedTags.value.push(tag);
+    }
   };
 
   const refreshTags = async () => {
@@ -107,7 +112,7 @@ export const useTagStore = defineStore("tags", () => {
 
   const clearCache = () => {
     tags.value = [];
-    selectedTag.value = null;
+    selectedTags.value = [];
     lastFetched.value = null;
     localStorage.removeItem("tagStore");
     //console.log("Tag cache cleared");
@@ -116,7 +121,7 @@ export const useTagStore = defineStore("tags", () => {
   return {
     // State
     tags,
-    selectedTag,
+    selectedTags,
     lastFetched,
     cacheExpiry,
 

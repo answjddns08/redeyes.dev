@@ -5,7 +5,10 @@
     </div>
     <ul class="list-disc gap-2 ml-2.5">
       <li v-for="tag in tagStore.filteredTags" :key="tag" v-show="tag">
-        <button @click="handleTagClick(tag)" :class="{ active: tagStore.selectedTag === tag }">
+        <button
+          @click="handleTagClick(tag)"
+          :class="{ active: tagStore.selectedTags.includes(tag) }"
+        >
           {{ tag }}
         </button>
       </li>
@@ -25,9 +28,10 @@ const route = useRoute();
 function handleTagClick(tag) {
   tagStore.toggleTag(tag);
 
-  // toggle 후의 상태로 라우팅 결정
-  if (tagStore.selectedTag) {
-    router.push({ path: "/", query: { search: "#" + tagStore.selectedTag } });
+  // 선택된 태그들을 쉼표로 구분하여 URL에 저장
+  if (tagStore.selectedTags.length > 0) {
+    const searchQuery = tagStore.selectedTags.map((t) => "#" + t).join(",");
+    router.push({ path: "/", query: { search: searchQuery } });
   } else {
     router.push({ path: "/", query: {} });
   }
@@ -39,9 +43,13 @@ onMounted(async () => {
 
     // URL에서 초기 태그 상태 설정
     const searchQuery = route.query.search;
-    if (searchQuery && searchQuery.startsWith("#")) {
-      const tagFromUrl = searchQuery.slice(1);
-      tagStore.selectedTag = tagFromUrl;
+    if (searchQuery) {
+      // 쉼표로 구분된 여러 태그 파싱
+      const tagsFromUrl = searchQuery
+        .split(",")
+        .filter((t) => t.trim().startsWith("#"))
+        .map((t) => t.trim().slice(1));
+      tagStore.selectedTags.push(...tagsFromUrl);
     }
   } catch (error) {
     console.error("Failed to initialize tags:", error);
@@ -53,15 +61,22 @@ watch(
   (newRoute) => {
     // URL 쿼리에서 선택된 태그 동기화
     const searchQuery = newRoute.query.search;
-    if (searchQuery && searchQuery.startsWith("#")) {
-      const tagFromUrl = searchQuery.slice(1); // '#' 제거
-      if (tagStore.selectedTag !== tagFromUrl) {
-        tagStore.selectedTag = tagFromUrl;
+    if (searchQuery) {
+      const tagsFromUrl = searchQuery
+        .split(",")
+        .filter((t) => t.trim().startsWith("#"))
+        .map((t) => t.trim().slice(1));
+      const urlTags = new Set(tagsFromUrl);
+      const storeTags = new Set(tagStore.selectedTags);
+
+      // 다른 경우에만 업데이트 (무한 루프 방지)
+      if (urlTags.size !== storeTags.size || ![...urlTags].every((t) => storeTags.has(t))) {
+        tagStore.selectedTags = tagsFromUrl;
       }
     } else {
-      // 검색 쿼리가 없거나 태그가 아닌 경우 선택 해제
-      if (tagStore.selectedTag) {
-        tagStore.selectedTag = null;
+      // 검색 쿼리가 없는 경우 태그 초기화
+      if (tagStore.selectedTags.length > 0) {
+        tagStore.selectedTags = [];
       }
     }
   },

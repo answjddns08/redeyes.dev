@@ -130,30 +130,57 @@ func filterPosts(posts []postListItem, rawSearch string) []postListItem {
 
 	filtered := make([]postListItem, 0, len(posts))
 	for _, post := range posts {
-		if matchesAnyTerm(post, cleanTerms) {
+		if matchesAllTerms(post, cleanTerms) {
 			filtered = append(filtered, post)
 		}
 	}
 	return filtered
 }
 
-func matchesAnyTerm(post postListItem, terms []string) bool {
+func matchesAllTerms(post postListItem, terms []string) bool {
+	// 태그와 검색어를 분리
+	var tagTerms []string
+	var searchTerms []string
+
 	for _, term := range terms {
 		if strings.HasPrefix(term, "#") {
-			needle := strings.ToLower(strings.TrimPrefix(term, "#"))
-			for _, tag := range post.Tag {
-				if strings.Contains(strings.ToLower(tag), needle) {
-					return true
-				}
-			}
-			continue
-		}
-
-		if strings.Contains(strings.ToLower(post.Title), strings.ToLower(term)) {
-			return true
+			tagTerms = append(tagTerms, strings.ToLower(strings.TrimPrefix(term, "#")))
+		} else {
+			searchTerms = append(searchTerms, strings.ToLower(term))
 		}
 	}
-	return false
+
+	// 모든 태그 조건이 만족되어야 함 (AND 연산)
+	if len(tagTerms) > 0 {
+		for _, tagTerm := range tagTerms {
+			found := false
+			for _, tag := range post.Tag {
+				if strings.Contains(strings.ToLower(tag), tagTerm) {
+					found = true
+					break
+				}
+			}
+			// 하나라도 태그를 찾지 못하면 false
+			if !found {
+				return false
+			}
+		}
+	}
+
+	// 검색어는 하나라도 일치하면 됨 (OR 연산)
+	if len(searchTerms) > 0 {
+		found := false
+		for _, searchTerm := range searchTerms {
+			if strings.Contains(strings.ToLower(post.Title), searchTerm) {
+				found = true
+				break
+			}
+		}
+		return found
+	}
+
+	// 태그만 있고 모두 일치한 경우, 또는 검색어가 없는 경우
+	return len(tagTerms) > 0 || len(searchTerms) == 0
 }
 
 func readAllPostListItems() ([]postListItem, error) {
