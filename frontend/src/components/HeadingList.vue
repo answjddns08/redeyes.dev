@@ -175,23 +175,28 @@ button.active {
 }
 
 .h2 {
-  margin-left: 0.75rem;
+  margin-left: 0.5rem;
 }
 
 .h3 {
-  margin-left: 1.5rem;
+  margin-left: 0.75rem;
 }
 
 .h4 {
-  margin-left: 2.25rem;
+  margin-left: 1rem;
 }
 
 .h5 {
-  margin-left: 3rem;
+  margin-left: 1.25rem;
 }
 
 .h6 {
-  margin-left: 3.75rem;
+  margin-left: 1.5rem;
+}
+
+/* 전역 헤딩 스크롤 여백 설정 */
+:global(h1, h2, h3, h4, h5, h6) {
+  scroll-margin-top: 6rem; /* 상단에 고정된 요소 높이에 맞춰 조정 */
 }
 
 @media (max-width: 1400px) {
