@@ -7,7 +7,7 @@
 
     <div class="author-info">
       <p class="author">redeyes</p>
-      <p class="description">눈(snow)이 너무 빨감</p>
+      <p class="description">눈(snow 아님)이 너무 빨감</p>
       <div class="social-links">
         <a href="https://github.com/answjddns08" target="_blank">
           <font-awesome-icon :icon="['fab', 'github']" class="icon" size="2xl" />

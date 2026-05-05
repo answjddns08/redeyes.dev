@@ -1,13 +1,13 @@
 <template>
   <main class="flex flex-col items-center mt-10 gap-2">
-    <p class="text-6xl mt-4 font-bold" style="color: var(--text-primary);">Construction Zone</p>
+    <p class="text-6xl mt-4 font-bold" style="color: var(--text-primary)">Construction Zone</p>
 
-    <p class="mt-2" style="color: var(--text-secondary);">This page is currently under development.</p>
-    <p class="my-2" style="color: var(--text-secondary);">You can go back to the home page.</p>
+    <p class="mt-2" style="color: var(--text-secondary)">
+      This page is currently under development.
+    </p>
+    <p class="my-2" style="color: var(--text-secondary)">You can go back to the home page.</p>
 
-    <button @click="$router.push('/')">
-      Go to Home
-    </button>
+    <button @click="$router.push('/')">Go to Home</button>
   </main>
 </template>
 
@@ -61,12 +61,17 @@ button {
   padding: 0.5rem 1rem;
 
   color: white;
-  background-color: #3b82f6;
 
-  transition: background-color 0.3s ease;
+  border: 1px solid transparent;
+
+  transition: all 0.2s ease;
 }
 
 button:hover {
-  background-color: #2563eb;
+  background-color: var(--accent-soft);
+
+  border: 1px solid var(--accent-color);
+
+  transform: translateY(-2px);
 }
 </style>
