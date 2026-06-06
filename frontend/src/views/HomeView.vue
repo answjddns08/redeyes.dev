@@ -1,12 +1,25 @@
 <template>
-  <main class="home-wrap">
+  <main class="home-layout">
+    <!-- 왼쪽: 태그 목록 -->
+    <div class="tags-wrapper">
+      <showTags />
+    </div>
+
+    <!-- 가운데: 포스트 목록 -->
     <ShowPosts />
+
+    <!-- 오른쪽: 작가 정보 -->
+    <div class="author-wrapper">
+      <AuthorField />
+    </div>
   </main>
 </template>
 
 <script setup>
+import showTags from "@/components/showTags.vue";
 import { useHead } from "@vueuse/head";
 import ShowPosts from "@/components/ShowPosts.vue";
+import AuthorField from "@/components/authorField.vue";
 
 // 홈페이지 SEO 메타태그 설정
 useHead({
@@ -58,9 +71,14 @@ useHead({
 </script>
 
 <style scoped>
-.home-wrap {
-  width: min(1200px, 94vw);
-  margin: 1.5rem auto 0;
+.home-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 320px;
+  gap: 2.5rem;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: 100vh;
 }
 
 .home-hero {
@@ -89,5 +107,74 @@ h1 {
 .description {
   margin: 0;
   color: var(--text-secondary);
+}
+
+.tags-wrapper {
+  width: 100%;
+  flex-shrink: 0;
+  position: sticky;
+  top: calc(var(--navbar-height) + 1rem);
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  height: fit-content;
+}
+
+@media (max-width: 1180px) {
+  .posts-layout {
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .author-wrapper {
+    display: none;
+  }
+
+  .tags-wrapper {
+    position: sticky;
+    top: calc(var(--navbar-height) + 0.75rem);
+    margin-top: 0.5rem;
+    padding-top: 0;
+  }
+
+  .posts-main-wrapper,
+  .posts-content-wrapper {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .tags-wrapper,
+  .author-wrapper {
+    display: none;
+  }
+
+  .posts-main-wrapper,
+  .posts-content-wrapper {
+    max-width: 100%;
+  }
+
+  .postContainer {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .postImageBlock {
+    width: calc(100% - 1.5rem);
+    height: 10.5rem;
+  }
+
+  .post-meta-block {
+    padding: 0 0.85rem 0.95rem;
+  }
+}
+
+.author-wrapper {
+  width: 100%;
+  flex-shrink: 0;
+  position: sticky;
+  top: calc(var(--navbar-height) + 1rem);
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  height: fit-content;
 }
 </style>

@@ -118,14 +118,13 @@ watch(
 <style scoped>
 .block {
   position: fixed;
-  top: 28%;
-  transform: translateY(-50%);
+  top: 20%;
 
   width: clamp(12rem, 13vw, 14rem);
 
-  right: clamp(1.25rem, 4vw, 3.5rem);
+  right: 15vw;
 
-  padding: 0.25rem 0.75rem;
+  padding: 0.25rem 0.5rem;
 
   line-height: 1.5;
 
@@ -133,6 +132,7 @@ watch(
 
   max-height: 70vh;
   overflow-y: auto;
+  overflow-x: hidden;
 
   z-index: 10;
 }
@@ -179,19 +179,19 @@ button.active {
 }
 
 .h3 {
-  margin-left: 0.75rem;
-}
-
-.h4 {
   margin-left: 1rem;
 }
 
+.h4 {
+  margin-left: 1.5rem;
+}
+
 .h5 {
-  margin-left: 1.25rem;
+  margin-left: 2rem;
 }
 
 .h6 {
-  margin-left: 1.5rem;
+  margin-left: 2.5rem;
 }
 
 /* 전역 헤딩 스크롤 여백 설정 */

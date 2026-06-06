@@ -1,11 +1,5 @@
 <template>
   <div class="posts-layout">
-    <!-- 왼쪽: 태그 목록 -->
-    <div class="tags-wrapper">
-      <ShowTags />
-    </div>
-
-    <!-- 가운데: 포스트 목록 -->
     <div class="posts-main-wrapper">
       <div v-if="posts.length > 0" class="posts-content-wrapper">
         <RouterLink
@@ -69,11 +63,6 @@
       </div>
     </div>
 
-    <!-- 오른쪽: 작가 정보 -->
-    <div class="author-wrapper">
-      <AuthorField />
-    </div>
-
     <!-- 맨 위로 가기 버튼 -->
     <Transition name="scroll-btn" appear>
       <button v-show="showScrollToTop" class="scroll-to-top-btn" @click="scrollToTop">
@@ -87,9 +76,7 @@
 import { onMounted, ref, watch, computed, onUnmounted, nextTick } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import axios from "axios";
-import ShowTags from "./showTags.vue";
 import { usePostStore } from "@/stores/postStore";
-import AuthorField from "./authorField.vue";
 
 /**
  * @typedef {Object} Post
@@ -115,7 +102,6 @@ const showScrollToTop = ref(false);
 const autoLoadTrigger = ref(null);
 let observer = null;
 
-// computed 속성들
 const displayedPosts = computed(() => {
   return posts.value.slice(0, displayLimit.value);
 });
@@ -132,6 +118,12 @@ const hasMorePosts = computed(() => {
 const getImageUrl = (postFolder, imageName) => {
   return `https://blog.redeyes.dev/api/posts/images/${postFolder}/${imageName}`;
 };
+
+/*
+   TODO: 잠만 캐시 데이터가 있으면 아예 백엔드로 요청을 안보냄
+   그럼 캐시 만료 기간 안에 데이터 바뀌면 그게 적용이 안됨
+   나중에 백엔드에서 캐시 시스템을 만드는 게 나을 듯
+*/
 
 /** get Posts */
 async function getPosts() {
@@ -249,8 +241,6 @@ p {
 }
 
 .posts-layout {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr) 320px;
   gap: 1rem;
   width: 100%;
   max-width: 1200px;
@@ -271,26 +261,6 @@ p {
 .posts-content-wrapper {
   width: 100%;
   max-width: 47rem;
-}
-
-.tags-wrapper {
-  width: 100%;
-  flex-shrink: 0;
-  position: sticky;
-  top: calc(var(--navbar-height) + 1rem);
-  margin-top: 0.5rem;
-  padding-top: 1rem;
-  height: fit-content;
-}
-
-.author-wrapper {
-  width: 100%;
-  flex-shrink: 0;
-  position: sticky;
-  top: calc(var(--navbar-height) + 1rem);
-  margin-top: 0.5rem;
-  padding-top: 1rem;
-  height: fit-content;
 }
 
 .postContainer {
@@ -465,22 +435,6 @@ p {
 }
 
 @media (max-width: 1180px) {
-  .posts-layout {
-    grid-template-columns: 220px minmax(0, 1fr);
-    gap: 1rem;
-  }
-
-  .author-wrapper {
-    display: none;
-  }
-
-  .tags-wrapper {
-    position: sticky;
-    top: calc(var(--navbar-height) + 0.75rem);
-    margin-top: 0.5rem;
-    padding-top: 0;
-  }
-
   .posts-main-wrapper,
   .posts-content-wrapper {
     max-width: 100%;
@@ -488,11 +442,6 @@ p {
 }
 
 @media (max-width: 768px) {
-  .tags-wrapper,
-  .author-wrapper {
-    display: none;
-  }
-
   .posts-main-wrapper,
   .posts-content-wrapper {
     max-width: 100%;
