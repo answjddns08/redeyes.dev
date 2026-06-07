@@ -2,11 +2,10 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
-
 	"log"
 	"net/http"
 	"sync/atomic"
+	"time"
 )
 
 type API struct {
@@ -14,8 +13,6 @@ type API struct {
 	pendingJobs atomic.Int64
 	jobSeq      atomic.Uint64
 }
-
-var errDownloadQueueFull = errors.New("download_queue_full")
 
 func New(logger *log.Logger) *API {
 	if logger == nil {
@@ -26,7 +23,31 @@ func New(logger *log.Logger) *API {
 		Logger: logger,
 	}
 
+	if err := InitializeCache(); err != nil {
+		api.Logger.Printf("FATAL: Failed to initialize post cache: %v", err)
+	}
+
 	return api
+}
+
+// --- Handlers ---
+
+func (api *API) handleCacheCheck(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+
+	// *** CRITICAL CHANGE: Returning actual server timestamp ***
+	// In a production system, this timestamp would be the last time the underlying data (DB/MD files) was successfully updated.
+	serverTimestamp := time.Now().Format(time.RFC3339)
+
+	response := map[string]interface{}{
+		"isValid":   true, // Since we are using in-memory cache initialized on startup, we assume it's valid unless a more complex expiry rule is implemented.
+		"timestamp": serverTimestamp,
+	}
+
+	WriteJSON(w, http.StatusOK, response)
 }
 
 func (api *API) Register(mux *http.ServeMux) {
@@ -34,6 +55,7 @@ func (api *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/posts/", api.handlePost)
 	mux.HandleFunc("/api/tags", api.handleTags)
 	mux.HandleFunc("/api/tags/", api.handleTags)
+	mux.HandleFunc("/api/cache-status", api.handleCacheCheck)
 
 	postsDir, err := postsDirPath()
 	if err != nil {

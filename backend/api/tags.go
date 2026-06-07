@@ -8,27 +8,12 @@ func (api *API) handleTags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	posts, err := readAllPostListItems()
+	cacheData, err := readCacheFromJSON()
 	if err != nil {
-		api.Logger.Printf("failed to read tags: %v", err)
-		WriteError(w, http.StatusInternalServerError, "failed_to_read_tags")
-		return
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed_to_read_cache"})
 	}
 
-	seen := make(map[string]struct{})
-	tags := make([]string, 0)
-	for _, post := range posts {
-		for _, tag := range post.Tag {
-			if tag == "" {
-				continue
-			}
-			if _, exists := seen[tag]; exists {
-				continue
-			}
-			seen[tag] = struct{}{}
-			tags = append(tags, tag)
-		}
-	}
+	tags := cacheData.tags
 
 	WriteJSON(w, http.StatusOK, tags)
 }
