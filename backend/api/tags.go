@@ -13,7 +13,7 @@ func (api *API) handleTags(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed_to_read_cache"})
 	}
 
-	tags := cacheData.tags
+	tags := cacheData.Tags
 
 	WriteJSON(w, http.StatusOK, tags)
 }

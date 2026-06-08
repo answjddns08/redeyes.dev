@@ -14,11 +14,12 @@ import (
 
 // --- Data Structures ---
 type frontMatter struct {
-	Title   string   `yaml:"title"`
-	Date    string   `yaml:"date"`
-	Tag     []string `yaml:"tag"`
-	Summary string   `yaml:"summary"`
-	Cover   *string  `yaml:"coverImg"`
+	Title   string   `yaml:"title" json:"title"`
+	Date    string   `yaml:"date" json:"date"`
+	Tag     []string `yaml:"tag" json:"tag"`
+	Summary string   `yaml:"summary" json:"summary"`
+	Cover   string   `yaml:"coverImg" json:"coverImg,omitempty"`
+	Folder  string   `json:"folder"`
 }
 
 func (api *API) handlePosts(w http.ResponseWriter, r *http.Request) {
@@ -32,7 +33,10 @@ func (api *API) handlePosts(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed_to_read_cache"})
 	}
 
-	posts := make([]frontMatter, 0, len(cacheData.frontmatter))
+	posts := make([]frontMatter, 0, len(cacheData.Frontmatter))
+	for _, meta := range cacheData.Frontmatter {
+		posts = append(posts, meta)
+	}
 
 	search := strings.TrimSpace(r.URL.Query().Get("search"))
 	if search != "" {
@@ -66,9 +70,23 @@ func (api *API) handlePost(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed_to_read_cache"})
 	}
 
-	post := cacheData.details[folder]
+	payload := struct {
+		Folder   string   `json:"folder"`
+		Title    string   `json:"title"`
+		Date     string   `json:"date"`
+		Tag      []string `json:"tag"`
+		Content  string   `json:"content"`
+		CoverImg string   `json:"coverImg,omitempty"`
+	}{
+		Folder:   folder,
+		Title:    cacheData.Frontmatter[folder].Title,
+		Date:     cacheData.Frontmatter[folder].Date,
+		Tag:      cacheData.Frontmatter[folder].Tag,
+		Content:  cacheData.Details[folder],
+		CoverImg: cacheData.Frontmatter[folder].Cover,
+	}
 
-	WriteJSON(w, http.StatusOK, post)
+	WriteJSON(w, http.StatusOK, payload)
 }
 
 func parsePostMarkdown(raw string) (frontMatter, string, error) {
@@ -187,4 +205,3 @@ func filterPosts(posts []frontMatter, search string) []frontMatter {
 	}
 	return filtered
 }
-
