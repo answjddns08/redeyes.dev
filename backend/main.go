@@ -47,6 +47,7 @@ func withCORS(next http.Handler) http.Handler {
 		"http://localhost:5173":     {},
 		"https://blog.redeyes.dev":  {},
 		"http://192.168.35.11:5173": {},
+		"app://obsidian.md":         {},
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
