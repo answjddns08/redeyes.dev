@@ -1,9 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"backend/api"
 )
@@ -11,20 +14,32 @@ import (
 func main() {
 	addr := getEnv("PORT", ":5000")
 
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
 	apiServer := api.New(log.Default())
-
 	mux := http.NewServeMux()
-
 	apiServer.Register(mux)
 
 	server := &http.Server{
 		Addr:    addr,
 		Handler: withCORS(withLogging(mux)),
 	}
+	go func() {
+		log.Printf("API listening on %s", addr)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed: %v", err)
+		}
+	}()
 
-	log.Printf("Starting server on %s", addr)
+	<-quit // if receiving shutdown signal, proceed to shutdown
 
-	log.Fatal(server.ListenAndServe())
+	err := apiServer.Store.DB.Close()
+	if err != nil {
+		fmt.Printf("Error closing database: %v\n", err)
+	}
+
+	fmt.Println("Server stopped")
 }
 
 func getEnv(key string, fallback string) string {
