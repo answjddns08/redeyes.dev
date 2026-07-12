@@ -143,7 +143,7 @@ func parsePostMarkdown(raw string, postDir string) (frontMatter, string, error) 
 
 	// Tags can come in different shapes; normalize to []string
 	fm.Tag = []string{}
-	if t, exists := metaData["tag"]; exists && t != nil {
+	if t, exists := metaData["tags"]; exists && t != nil {
 		switch tt := t.(type) {
 		case []any:
 			for _, it := range tt {
