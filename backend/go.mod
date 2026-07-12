@@ -1,7 +1,10 @@
 module backend
 
-go 1.25.6
+go 1.26
 
-require gopkg.in/yaml.v3 v3.0.1
+require (
+	github.com/yuin/goldmark v1.8.2
+	github.com/yuin/goldmark-meta v1.1.0
+)
 
-require github.com/gomarkdown/markdown v0.0.0-20260417124207-7d523f7318df
+require gopkg.in/yaml.v2 v2.3.0 // indirect

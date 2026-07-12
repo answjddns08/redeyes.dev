@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 )
+
+// TODO:LRU(Latest Request Update) 캐시 도입할지 고민중
+// 인기 많은 것들 위주로 메모리에 저장하도록 하여 좀 더 빠른 응답을 제공할 수 있도록 개선 가능
 
 type cacheStructure struct {
 	Frontmatter map[string]frontMatter `json:"frontmatter"`
@@ -16,7 +18,6 @@ type cacheStructure struct {
 
 // InitializeCache loads all posts from the filesystem and save them to JSON.
 func InitializeCache() error {
-	// 맵을 명시적으로 초기화합니다.
 	cacheData := cacheStructure{
 		Frontmatter: make(map[string]frontMatter),
 		Details:     make(map[string]string),
@@ -39,24 +40,21 @@ func InitializeCache() error {
 	fmt.Printf("INFO: Found %d directories in posts folder. Starting file processing...\n", len(entries))
 
 	for _, entry := range entries {
-		fullPath := path.Join(root, entry.Name(), "index.md")
+		fullPath := filepath.Join(root, entry.Name(), "index.md")
 
 		rawData, err := os.ReadFile(fullPath)
 		if err != nil {
-			// 🚨 오류 수정: 오류 발생 시 즉시 반환하지 않고, 로깅 후 다음 항목으로 넘어갑니다.
 			fmt.Printf("WARNING: Failed to read index.md for %s: %v. Skipping this post.\n", entry.Name(), err)
 			continue
 		}
 
-		meta, htmlBody, err := parsePostMarkdown(string(rawData))
+		meta, htmlBody, err := parsePostMarkdown(string(rawData), entry.Name())
 		if err != nil {
-			// 🚨 오류 수정: 오류 발생 시 즉시 반환하지 않고, 로깅 후 다음 항목으로 넘어갑니다.
+			// when error occurs, log the error and skip this post
 			fmt.Printf("WARNING: Failed to parse post markdown for %s: %v. Skipping this post.\n", entry.Name(), err)
 			continue
 		}
 
-		// 맵에 데이터를 안전하게 할당합니다.
-		// meta 구조체에 Folder 정보를 추가합니다.
 		meta.Folder = entry.Name()
 		cacheData.Frontmatter[entry.Name()] = meta
 		for _, tag := range meta.Tag {
@@ -70,7 +68,6 @@ func InitializeCache() error {
 		cacheData.Tags = append(cacheData.Tags, tag)
 	}
 
-	// 모든 포스트 처리가 끝난 후, 캐시를 저장합니다.
 	err = saveCacheToJSON(cacheData)
 	if err != nil {
 		return fmt.Errorf("failed to save cache: %w", err)

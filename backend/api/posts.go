@@ -1,27 +1,32 @@
 package api
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
+	"net/url"
+	"path"
 	"regexp"
 	"strings"
 
-	"github.com/gomarkdown/markdown"
-	"github.com/gomarkdown/markdown/html"
-	"github.com/gomarkdown/markdown/parser"
-	"gopkg.in/yaml.v3"
+	"github.com/yuin/goldmark"
+	meta "github.com/yuin/goldmark-meta"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer/html"
 )
 
 // --- Data Structures ---
 type frontMatter struct {
 	Title   string   `yaml:"title" json:"title"`
 	Date    string   `yaml:"date" json:"date"`
-	Tag     []string `yaml:"tag" json:"tag"`
+	Tag     []string `yaml:"tags" json:"tags"`
 	Summary string   `yaml:"summary" json:"summary"`
-	Cover   string   `yaml:"coverImg" json:"coverImg,omitempty"`
+	Cover   string   `yaml:"coverImg,omitempty" json:"coverImg,omitempty"`
 	Folder  string   `json:"folder"`
 }
 
+// handlePosts handles the /api/posts endpoint, returning a list of posts with optional search filtering.
 func (api *API) handlePosts(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed")
@@ -46,6 +51,7 @@ func (api *API) handlePosts(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, posts)
 }
 
+// handlePost handles the /api/posts/{folder} endpoint, returning the details of a specific post.
 func (api *API) handlePost(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed")
@@ -89,54 +95,91 @@ func (api *API) handlePost(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, payload)
 }
 
-func parsePostMarkdown(raw string) (frontMatter, string, error) {
-	parts := strings.Split(raw, "---")
-	if len(parts) < 3 {
-		return frontMatter{}, "", fmt.Errorf("invalid front matter: at least 3 parts expected")
+func parsePostMarkdown(raw string, postDir string) (frontMatter, string, error) {
+	// HTML 태그 입력을 허용하도록 goldmark 설정 (Unsafe 지정을 안 하면 <img> 태그가 렌더링되지 않고 생략됩니다)
+	md := goldmark.New(
+		goldmark.WithExtensions(meta.Meta, extension.Strikethrough),
+		goldmark.WithRendererOptions(
+			html.WithUnsafe(),
+			html.WithHardWraps(),
+		),
+	)
+
+	imagePathProcessed := convertImagePath(raw, postDir)
+
+	// 컨택스트 프론트매터 담는 변수
+	context := parser.NewContext()
+	var htmlBuf bytes.Buffer
+
+	// Convert를 실행하면 내부적으로 프론트매터는 잘라내서 context에 저장하고,
+	// 남은 본문은 HTML로 변환하여 htmlBuf에 담아줍니다.
+	if err := md.Convert([]byte(imagePathProcessed), &htmlBuf, parser.WithContext(context)); err != nil {
+		return frontMatter{}, "", err
 	}
 
-	yamlPart := strings.TrimSpace(parts[1])
-	markdownBody := strings.TrimSpace(strings.Join(parts[2:], "---"))
+	metaData := meta.Get(context)
+	var fm frontMatter
 
-	var meta frontMatter
-	if err := yaml.Unmarshal([]byte(yamlPart), &meta); err != nil {
-		return frontMatter{}, "", fmt.Errorf("yaml unmarshal error: %w", err)
+	// If no metadata present, return defaults with content
+	if metaData == nil {
+		fm.Folder = postDir
+		return fm, htmlBuf.String(), nil
 	}
 
-	if meta.Tag == nil {
-		meta.Tag = []string{}
+	// Safe extraction of string fields
+	if v, ok := metaData["title"].(string); ok {
+		fm.Title = v
+	}
+	if v, ok := metaData["coverImg"].(string); ok {
+		fm.Cover = v
+	}
+	if v, ok := metaData["date"].(string); ok {
+		fm.Date = v
+	}
+	if v, ok := metaData["summary"].(string); ok {
+		fm.Summary = v
+	}
+	fm.Folder = postDir
+
+	// Tags can come in different shapes; normalize to []string
+	fm.Tag = []string{}
+	if t, exists := metaData["tag"]; exists && t != nil {
+		switch tt := t.(type) {
+		case []any:
+			for _, it := range tt {
+				if s, ok := it.(string); ok {
+					fm.Tag = append(fm.Tag, s)
+				}
+			}
+		case []string:
+			fm.Tag = tt
+		case string:
+			// single tag as string
+			fm.Tag = []string{tt}
+		}
 	}
 
-	// ========================================================
-	// 💡 커스텀 로직: Obsidian 이미지 문법을 표준 Markdown으로 변환 (Pre-processing)
-	// [[ImageName]] -> ![ImageName](images/ImageName.jpg)
-	// ========================================================
+	return fm, htmlBuf.String(), nil
+}
 
-	// 정규식: [[캡처그룹1]] 패턴을 찾습니다. (.*?)는 비탐욕적 매칭입니다.
-	re := regexp.MustCompile(`\[\[(.*?)\]\]`)
+func convertImagePath(markdown string, postDir string) string {
+	imageDir := "/api/posts/images" // 이미지가 저장된 디렉토리 이름 (posts/ 폴더 내)
 
-	// 치환 함수: 찾은 그룹(ImageName)을 사용하여 표준 Markdown 형식으로 변환합니다.
-	processedBody := re.ReplaceAllString(markdownBody, "![\\1](images/\\1.jpg)")
+	re := regexp.MustCompile(`!\[\[([^|\]]+)(?:\|([0-9]+))?\]\]`)
 
-	// Markdown을 HTML로 파싱
+	return re.ReplaceAllStringFunc(markdown, func(match string) string {
+		submatches := re.FindStringSubmatch(match)
+		fileName := submatches[1] // 예: "image.png"
+		width := submatches[2]    // 예: "350" (없으면 "")
 
-	// 1. Parser 초기화 및 확장 설정
-	// parser.NewWithExtensions를 사용하여 원하는 확장 기능을 활성화합니다.
-	extensions := parser.CommonExtensions | parser.AutoHeadingIDs
-	p := parser.NewWithExtensions(extensions)
+		// 파일명 URL 인코딩 (공백은 %20 등으로 변환됨)
+		escapedName := url.PathEscape(fileName)
 
-	// 2. AST 파싱
-	doc := p.Parse([]byte(processedBody))
-
-	// 3. HTML 렌더러 설정
-	htmlFlags := html.CommonFlags | html.Smartypants
-	opts := html.RendererOptions{Flags: htmlFlags}
-	renderer := html.NewRenderer(opts)
-
-	// 4. AST를 HTML로 렌더링
-	htmlBody := markdown.Render(doc, renderer)
-
-	return meta, string(htmlBody), nil
+		if width != "" {
+			return fmt.Sprintf(`<img src="%s" width="%s" />`, path.Join(imageDir, postDir, escapedName), width)
+		}
+		return fmt.Sprintf(`<img src="%s" />`, path.Join(imageDir, postDir, escapedName))
+	})
 }
 
 func filterPosts(posts []frontMatter, search string) []frontMatter {
@@ -145,9 +188,8 @@ func filterPosts(posts []frontMatter, search string) []frontMatter {
 	}
 
 	// 1. 태그 검색 모드 확인
-	if strings.HasPrefix(search, "#") {
-		tagSearchString := strings.TrimPrefix(search, "#")
-		tags := strings.Split(tagSearchString, ",")
+	if tagStrings, isFound := strings.CutPrefix(search, "#"); isFound {
+		tags := strings.Split(tagStrings, ",")
 
 		filtered := []frontMatter{}
 		for _, post := range posts {
