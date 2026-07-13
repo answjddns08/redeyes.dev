@@ -1,14 +1,10 @@
 package api
 
 import (
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
-	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -93,10 +89,11 @@ func (s *sqliteStore) migrate() error {
 		CREATE TABLE IF NOT EXISTS posts (
 			slug TEXT PRIMARY KEY,
 			title TEXT NOT NULL,
-			summary TEXT,
+			date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			tags TEXT,
+			cover_img TEXT,
+			summary TEXT,
 			html_content TEXT NOT NULL,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		);`}
 	// slug: ID and url(ex: my-first-post)
 	// created_at: timestamp when the post was created(default to current timestamp)
@@ -120,15 +117,11 @@ func (s *sqliteStore) SavePost(post frontMatter, renderedHTML string) error {
 	}
 	defer func() {
 		if err != nil {
-			_ = tx.Rollback()
+			_ = tx.Rollback() // rollback
 		}
 	}()
 
-	if err = persistPostTx(tx, post, rawMarkdown, renderedHTML); err != nil {
-		return err
-	}
-
-	if err = pruneUnusedTagsTx(tx); err != nil {
+	if err = insertPostData(tx, post, renderedHTML); err != nil {
 		return err
 	}
 
@@ -139,55 +132,21 @@ func (s *sqliteStore) SavePost(post frontMatter, renderedHTML string) error {
 	return nil
 }
 
-func persistPostTx(tx *sql.Tx, post frontMatter, rawMarkdown, renderedHTML string) error {
-	hash := sha256.Sum256([]byte(rawMarkdown))
-	sourceHash := hex.EncodeToString(hash[:])
-
-	if _, err := tx.Exec(`INSERT INTO posts (folder, title, date, summary, cover_img, raw_markdown, rendered_html, source_hash, source_mtime, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(folder) DO UPDATE SET
-			title = excluded.title,
-			date = excluded.date,
-			summary = excluded.summary,
-			cover_img = excluded.cover_img,
-			raw_markdown = excluded.raw_markdown,
-			rendered_html = excluded.rendered_html,
-			source_hash = excluded.source_hash,
-			source_mtime = excluded.source_mtime,
-			updated_at = excluded.updated_at`,
-		post.Slug, post.Title, post.Date, post.Summary, post.Cover, rawMarkdown, renderedHTML, sourceHash, time.Now().UnixNano(), time.Now().UnixNano()); err != nil {
+func insertPostData(tx *sql.Tx, post frontMatter, renderedHTML string) error {
+	if _, err := tx.Exec(`INSERT INTO posts (folder, title, date, summary, cover_img, rendered_html) VALUES (?, ?, ?, ?, ?, ?) 
+	ON CONFLICT(folder) DO UPDATE SET
+		slug = excluded.slug,
+		title = excluded.title,
+		date = excluded.date,
+		tags = excluded.tags,
+		cover_img = excluded.cover_img,
+		summary = excluded.summary,
+		html_content = excluded.html_content
+		`, post.Slug, post.Title, post.Date, post.Tags, post.Cover, post.Summary, renderedHTML); err != nil {
 		return err
-	}
-
-	if _, err := tx.Exec(`DELETE FROM post_tags WHERE post_folder = ?`, post.Slug); err != nil {
-		return err
-	}
-
-	seen := make(map[string]struct{})
-	for _, tag := range post.Tag {
-		tag = strings.TrimSpace(tag)
-		if tag == "" {
-			continue
-		}
-		if _, ok := seen[tag]; ok {
-			continue
-		}
-		seen[tag] = struct{}{}
-
-		if _, err := tx.Exec(`INSERT INTO tags (tag) VALUES (?) ON CONFLICT(tag) DO NOTHING`, tag); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(`INSERT INTO post_tags (post_folder, tag) VALUES (?, ?)`, post.Slug, tag); err != nil {
-			return err
-		}
 	}
 
 	return nil
-}
-
-func pruneUnusedTagsTx(tx *sql.Tx) error {
-	_, err := tx.Exec(`DELETE FROM tags WHERE tag NOT IN (SELECT tag FROM post_tags)`)
-	return err
 }
 
 func (s *sqliteStore) DeletePost(folder string) error {
@@ -215,10 +174,6 @@ func (s *sqliteStore) DeletePost(folder string) error {
 	}
 	if deletedRows == 0 {
 		return sql.ErrNoRows
-	}
-
-	if err = pruneUnusedTagsTx(tx); err != nil {
-		return err
 	}
 
 	if err = tx.Commit(); err != nil {
@@ -290,7 +245,7 @@ func (s *sqliteStore) RescanFromFilesystem() (processed int, skipped int, err er
 	}
 
 	for _, record := range records {
-		if err = persistPostTx(tx, record.post, record.rawMarkdown, record.renderedHTML); err != nil {
+		if err = insertPostData(tx, record.post, record.renderedHTML); err != nil {
 			return 0, 0, err
 		}
 		processed++
@@ -320,7 +275,7 @@ func (s *sqliteStore) ListPosts() ([]frontMatter, error) {
 		if err != nil {
 			return nil, err
 		}
-		post.Tag = tags
+		post.Tags = tags
 		posts = append(posts, post)
 	}
 
@@ -339,7 +294,7 @@ func (s *sqliteStore) GetPost(folder string) (storedPost, error) {
 	if err != nil {
 		return storedPost{}, err
 	}
-	post.Tag = tags
+	post.Tags = tags
 
 	return post, nil
 }

@@ -169,7 +169,7 @@ func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := api.Store.SavePost(finalPost, rewrittenMarkdown, htmlBody); err != nil {
+	if err := api.Store.SavePost(finalPost, htmlBody); err != nil {
 		api.Logger.Printf("failed to persist post %s to sqlite: %v", slugName, err)
 		WriteError(w, http.StatusInternalServerError, "failed_to_save_post")
 		return

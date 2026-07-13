@@ -20,7 +20,7 @@ import (
 type frontMatter struct {
 	Title   string   `yaml:"title" json:"title"`
 	Date    string   `yaml:"date" json:"date"`
-	Tag     []string `yaml:"tags" json:"tags"`
+	Tags    []string `yaml:"tags" json:"tags"`
 	Summary string   `yaml:"summary" json:"summary"`
 	Cover   string   `yaml:"coverImg,omitempty" json:"coverImg,omitempty"`
 	Slug    string   `json:"folder"`
@@ -83,7 +83,7 @@ func (api *API) handlePost(w http.ResponseWriter, r *http.Request) {
 		Folder:   post.Slug,
 		Title:    post.Title,
 		Date:     post.Date,
-		Tag:      post.Tag,
+		Tag:      post.Tags,
 		Content:  post.Content,
 		CoverImg: post.Cover,
 	}
@@ -140,20 +140,20 @@ func parseMarkdown(raw string, postDir string, imageMap map[string]string) (fron
 	fm.Slug = postDir
 
 	// Tags can come in different shapes; normalize to []string
-	fm.Tag = []string{}
+	fm.Tags = []string{}
 	if t, exists := metaData["tags"]; exists && t != nil {
 		switch tt := t.(type) {
 		case []any:
 			for _, it := range tt {
 				if s, ok := it.(string); ok {
-					fm.Tag = append(fm.Tag, s)
+					fm.Tags = append(fm.Tags, s)
 				}
 			}
 		case []string:
-			fm.Tag = tt
+			fm.Tags = tt
 		case string:
 			// single tag as string
-			fm.Tag = []string{tt}
+			fm.Tags = []string{tt}
 		}
 	}
 
@@ -200,7 +200,7 @@ func filterPosts(posts []frontMatter, search string) []frontMatter {
 					continue
 				}
 				found := false
-				for _, postTag := range post.Tag {
+				for _, postTag := range post.Tags {
 					if strings.EqualFold(postTag, tag) {
 						found = true
 						break
@@ -231,7 +231,7 @@ func filterPosts(posts []frontMatter, search string) []frontMatter {
 
 		// 태그 검색도 키워드로 수행할 수 있도록 처리
 		if !match {
-			for _, tag := range post.Tag {
+			for _, tag := range post.Tags {
 				tagLower := strings.ToLower(tag)
 				if strings.Contains(tagLower, keyword) {
 					match = true
