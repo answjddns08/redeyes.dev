@@ -104,7 +104,7 @@ func parseMarkdown(raw string, postDir string, imageMap map[string]string) (fron
 	// TODO: 나중에 goldmark 리졸버를 커스텀하도록 하는 편이 더 좋을 듯?
 	// 이 방식은 파일을 2번 스캔해서 비효율적이니
 
-	imagePathProcessed := convertImagePath(raw, postDir, nil)
+	imagePathProcessed := convertImagePath(raw, postDir, imageMap)
 
 	// 컨택스트 프론트매터 담는 변수
 	context := parser.NewContext()
@@ -170,6 +170,10 @@ func convertImagePath(markdown string, postTitle string, imageMap map[string]str
 		fileName := submatches[1]                // ex: "image.png"
 		width := submatches[2]                   // ex: "350" (if not exist"")
 		storedName := postTitle + "-" + fileName // ex: postTitle-image.png
+
+		if imageMap != nil && imageMap[fileName] != "" {
+			storedName = imageMap[fileName]
+		}
 
 		// url encooding image name to handle special characters and spaces
 		escapedName := url.PathEscape(storedName)
