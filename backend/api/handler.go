@@ -1,17 +1,14 @@
-// Package api implements the HTTP API for the blog backend, including caching and data retrieval logic.
+// Package api provides the HTTP API handlers for the blog backend.
 package api
 
 import (
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 )
 
@@ -40,18 +37,26 @@ func (api *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/posts", api.handlePosts)
 	mux.HandleFunc("/api/posts/", api.handlePost)
 	mux.HandleFunc("/api/tags", api.handleTags)
-	mux.HandleFunc("/api/tags/", api.handleTags)
+	mux.HandleFunc("/api/tags/", api.handleTags) // for backward compatibility
 	mux.HandleFunc("/api/upload", api.handleUpload)
-	mux.HandleFunc("/api/rescan", api.handleRescan)
-	mux.HandleFunc("/api/reindex", api.handleRescan)
+	mux.HandleFunc("/api/postdown/", api.handlePostDown)
 
-	postsDir, err := postsDirPath()
+	// 나중에 postDown으로 안쓰는 포스트들 지울 때 디렉토리에 있는 참조 안되는 이미지들도 지우도록하면 괜찮을 듯
+	// 잠만 근데 slug(id)값 지우면 어케 바꾸지(바꿔야 하는 그 전 값을 모르는데)
+	// 아 그럼 프론트에서 slug 값 저장하고 바뀌는지 확인하면 되려나
+	//
+	// 아 아니면 추가로 서버에 있는 블로그들 모달로 확인할 수 있도록 하고 지우게 하면 되겠네
+	// 그럼 대충 문제 해결이겠네
+	// 아 이미지도 지워야 하는데
+	// 내가 일일이 하거나 서버에서 슬러그 목록 긁어서 그 단어 있는 이미지들 걸러내는 로직 넣어야겠네
+
+	imageDir, err := imageDirPath()
 	if err != nil {
 		api.Logger.Printf("failed to resolve posts directory: %v", err)
 		return
 	}
 
-	fs := http.FileServer(http.Dir(postsDir))
+	fs := http.FileServer(http.Dir(imageDir))
 	mux.Handle("/api/posts/images/", http.StripPrefix("/api/posts/images/", fs))
 }
 
@@ -75,7 +80,7 @@ func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method_not_allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !api.requireAdminAuth(w, r) {
+	if !api.requireAuth(w, r) {
 		return
 	}
 
@@ -86,12 +91,14 @@ func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	folderValues := r.MultipartForm.Value["folder"]
-	if len(folderValues) == 0 || strings.TrimSpace(folderValues[0]) == "" {
-		WriteError(w, http.StatusBadRequest, "missing_folder")
+	// TODO: use NextPart to handle files not loading all into memory at once
+
+	slugValues := r.MultipartForm.Value["slug"]
+	if len(slugValues) == 0 || strings.TrimSpace(slugValues[0]) == "" {
+		WriteError(w, http.StatusBadRequest, "missing_slug")
 		return
 	}
-	folderName := strings.TrimSpace(folderValues[0])
+	slugName := strings.TrimSpace(slugValues[0])
 
 	markdownValues := r.MultipartForm.Value["markdown"]
 	if len(markdownValues) == 0 {
@@ -100,55 +107,34 @@ func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	mdFile := markdownValues[0]
 
-	// get posts directory path
-	postsDir, err := postsDirPath()
+	imageDir, err := imageDirPath()
 	if err != nil {
-		api.Logger.Printf("failed to resolve posts directory: %v", err)
-		return
-	}
+		// make image directory if it doesn't exist
+		api.Logger.Printf("failed to resolve image directory: %v\ngenerating new image directory", err)
 
-	dirPath := path.Join(postsDir, folderName)
-
-	// make directory if not exists
-	err = os.MkdirAll(dirPath, os.ModePerm)
-	if err != nil {
-		api.Logger.Printf("failed to create folder: %v", err)
-		WriteError(w, http.StatusInternalServerError, "failed_to_create_folder")
-		return
-	}
-
-	previewPost, _, err := parsePostMarkdown(mdFile, folderName, nil)
-	if err != nil {
-		api.Logger.Printf("failed to parse uploaded markdown: %v", err)
-		WriteError(w, http.StatusBadRequest, "failed_to_parse_markdown")
-		return
+		err = os.MkdirAll(imageDir, os.ModePerm)
+		if err != nil {
+			api.Logger.Printf("failed to create image folder: %v", err)
+			WriteError(w, http.StatusInternalServerError, "failed_to_create_folder")
+			return
+		}
 	}
 
 	imageFiles := r.MultipartForm.File["images"]
 	imageNameMap := make(map[string]string, len(imageFiles))
-	usedNames := make(map[string]struct{}, len(imageFiles))
-	for index, fileHeader := range imageFiles {
-		storedName := uniqueImageName(previewPost.Title, folderName, fileHeader.Filename, index, usedNames)
-		usedNames[storedName] = struct{}{}
+	for _, fileHeader := range imageFiles {
+		//storedName := uniqueImageName(previewPost.Title, slugName, fileHeader.Filename, index, usedNames)
+		storedName := slugName + "_" + fileHeader.Filename
 		imageNameMap[fileHeader.Filename] = storedName
 	}
 
-	rewrittenMarkdown := rewriteImageReferences(mdFile, imageNameMap)
-	finalPost, htmlBody, err := parsePostMarkdown(rewrittenMarkdown, folderName, imageNameMap)
+	finalPost, htmlBody, err := parseMarkdown(mdFile, slugName, imageNameMap)
 	if err != nil {
 		api.Logger.Printf("failed to render uploaded markdown: %v", err)
 		WriteError(w, http.StatusBadRequest, "failed_to_render_markdown")
 		return
 	}
-	finalPost.Folder = folderName
-
-	// write markdown file
-	err = os.WriteFile(path.Join(dirPath, "index.md"), []byte(rewrittenMarkdown), 0o644)
-	if err != nil {
-		api.Logger.Printf("failed to write markdown file: %v", err)
-		WriteError(w, http.StatusInternalServerError, "failed_to_write_markdown")
-		return
-	}
+	finalPost.Slug = slugName
 
 	for _, fileHeader := range imageFiles {
 		file, err := fileHeader.Open()
@@ -156,15 +142,25 @@ func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, http.StatusInternalServerError, "failed_to_open_image")
 			return
 		}
-		defer file.Close()
+		defer func() {
+			err := file.Close()
+			if err != nil {
+				api.Logger.Printf("failed to close image file %s: %v", fileHeader.Filename, err)
+			}
+		}()
 
 		storedName := imageNameMap[fileHeader.Filename]
-		dst, err := os.Create(path.Join(dirPath, storedName))
+		dst, err := os.Create(path.Join(imageDir, storedName))
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, "failed_to_create_image_file")
 			return
 		}
-		defer dst.Close()
+		defer func() {
+			err := dst.Close()
+			if err != nil {
+				api.Logger.Printf("failed to close destination image file %s: %v", storedName, err)
+			}
+		}()
 
 		_, err = io.Copy(dst, file)
 		if err != nil {
@@ -174,7 +170,7 @@ func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := api.Store.SavePost(finalPost, rewrittenMarkdown, htmlBody); err != nil {
-		api.Logger.Printf("failed to persist post %s to sqlite: %v", folderName, err)
+		api.Logger.Printf("failed to persist post %s to sqlite: %v", slugName, err)
 		WriteError(w, http.StatusInternalServerError, "failed_to_save_post")
 		return
 	}
@@ -182,114 +178,26 @@ func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "file uploaded successfully"})
 }
 
-func (api *API) handleRescan(w http.ResponseWriter, r *http.Request) {
+func (api *API) handlePostDown(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed")
-		return
-	}
-	if !api.requireAdminAuth(w, r) {
+		http.Error(w, "method_not_allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	processed, skipped, err := api.Store.RescanFromFilesystem()
-	if err != nil {
-		api.Logger.Printf("failed to rescan filesystem into sqlite: %v", err)
-		WriteError(w, http.StatusInternalServerError, "failed_to_rescan")
+	if !api.requireAuth(w, r) {
 		return
 	}
 
-	WriteJSON(w, http.StatusOK, map[string]any{
-		"message":   "rescan_completed",
-		"processed": processed,
-		"skipped":   skipped,
-	})
-}
+	name := strings.TrimPrefix(r.URL.Path, "/api/postdown/")
+	name = strings.TrimSpace(name)
 
-func (api *API) handlePost(w http.ResponseWriter, r *http.Request) {
-	folder := strings.TrimPrefix(r.URL.Path, "/api/posts/")
-	folder = strings.TrimSpace(folder)
-	if folder == "" {
-		api.handlePosts(w, r)
+	if name == "" {
+		WriteError(w, http.StatusBadRequest, "missing_post_name")
 		return
-	}
-
-	if strings.Contains(folder, "/") {
-		WriteError(w, http.StatusNotFound, "post_not_found")
-		fmt.Printf("WARNING: Invalid post folder requested: %s\n", folder)
-		return
-	}
-
-	switch r.Method {
-	case http.MethodGet:
-		post, err := api.Store.GetPost(folder)
-		if err != nil {
-			WriteError(w, http.StatusNotFound, "post_not_found")
-			return
-		}
-
-		payload := struct {
-			Folder   string   `json:"folder"`
-			Title    string   `json:"title"`
-			Date     string   `json:"date"`
-			Tag      []string `json:"tag"`
-			Content  string   `json:"content"`
-			CoverImg string   `json:"coverImg,omitempty"`
-		}{
-			Folder:   post.Folder,
-			Title:    post.Title,
-			Date:     post.Date,
-			Tag:      post.Tag,
-			Content:  post.Content,
-			CoverImg: post.Cover,
-		}
-
-		WriteJSON(w, http.StatusOK, payload)
-	case http.MethodDelete:
-		if !api.requireAdminAuth(w, r) {
-			return
-		}
-
-		if err := api.Store.DeletePost(folder); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				WriteError(w, http.StatusNotFound, "post_not_found")
-				return
-			}
-			api.Logger.Printf("failed to delete post from sqlite: %v", err)
-			WriteError(w, http.StatusInternalServerError, "failed_to_delete_post")
-			return
-		}
-
-		postsDir, err := postsDirPath()
-		if err != nil {
-			api.Logger.Printf("failed to resolve posts directory during delete: %v", err)
-			WriteError(w, http.StatusInternalServerError, "failed_to_delete_files")
-			return
-		}
-
-		if err := os.RemoveAll(filepath.Join(postsDir, folder)); err != nil {
-			api.Logger.Printf("failed to remove post files for %s: %v", folder, err)
-			WriteError(w, http.StatusInternalServerError, "failed_to_delete_files")
-			return
-		}
-
-		processed, skipped, err := api.Store.RescanFromFilesystem()
-		if err != nil {
-			api.Logger.Printf("failed to rescan after deleting %s: %v", folder, err)
-			WriteError(w, http.StatusInternalServerError, "failed_to_reindex")
-			return
-		}
-
-		WriteJSON(w, http.StatusOK, map[string]any{
-			"message":   "file deleted successfully",
-			"processed": processed,
-			"skipped":   skipped,
-		})
-	default:
-		WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed")
 	}
 }
 
-func (api *API) requireAdminAuth(w http.ResponseWriter, r *http.Request) bool {
+func (api *API) requireAuth(w http.ResponseWriter, r *http.Request) bool {
 	if api.adminToken == "" {
 		return true
 	}

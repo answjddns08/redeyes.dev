@@ -6,10 +6,8 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"path/filepath"
 	"regexp"
 	"strings"
-	"unicode"
 
 	"github.com/yuin/goldmark"
 	meta "github.com/yuin/goldmark-meta"
@@ -25,7 +23,7 @@ type frontMatter struct {
 	Tag     []string `yaml:"tags" json:"tags"`
 	Summary string   `yaml:"summary" json:"summary"`
 	Cover   string   `yaml:"coverImg,omitempty" json:"coverImg,omitempty"`
-	Folder  string   `json:"folder"`
+	Slug    string   `json:"folder"`
 }
 
 // handlePosts handles the /api/posts endpoint, returning a list of posts with optional search filtering.
@@ -49,8 +47,52 @@ func (api *API) handlePosts(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, posts)
 }
 
-func parsePostMarkdown(raw string, postDir string, imageMap map[string]string) (frontMatter, string, error) {
-	// HTML 태그 입력을 허용하도록 goldmark 설정 (Unsafe 지정을 안 하면 <img> 태그가 렌더링되지 않고 생략됩니다)
+func (api *API) handlePost(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method_not_allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	folder := strings.TrimPrefix(r.URL.Path, "/api/posts/")
+	folder = strings.TrimSpace(folder)
+	if folder == "" {
+		api.handlePosts(w, r)
+		return
+	}
+
+	if strings.Contains(folder, "/") {
+		WriteError(w, http.StatusNotFound, "post_not_found")
+		fmt.Printf("WARNING: Invalid post folder requested: %s\n", folder)
+		return
+	}
+
+	post, err := api.Store.GetPost(folder)
+	if err != nil {
+		WriteError(w, http.StatusNotFound, "post_not_found")
+		return
+	}
+
+	payload := struct {
+		Folder   string   `json:"folder"`
+		Title    string   `json:"title"`
+		Date     string   `json:"date"`
+		Tag      []string `json:"tag"`
+		Content  string   `json:"content"`
+		CoverImg string   `json:"coverImg,omitempty"`
+	}{
+		Folder:   post.Slug,
+		Title:    post.Title,
+		Date:     post.Date,
+		Tag:      post.Tag,
+		Content:  post.Content,
+		CoverImg: post.Cover,
+	}
+
+	WriteJSON(w, http.StatusOK, payload)
+}
+
+func parseMarkdown(raw string, postDir string, imageMap map[string]string) (frontMatter, string, error) {
+	// HTML 태그 입력을 허용하도록 goldmark 설정 (Unsafe 지정을 안 하면 <img> 태그가 렌더링되지 않고 생략됨)
 	md := goldmark.New(
 		goldmark.WithExtensions(meta.Meta, extension.Strikethrough),
 		goldmark.WithRendererOptions(
@@ -59,14 +101,16 @@ func parsePostMarkdown(raw string, postDir string, imageMap map[string]string) (
 		),
 	)
 
-	imagePathProcessed := convertImagePath(raw, postDir, imageMap)
+	// TODO: 나중에 goldmark 리졸버를 커스텀하도록 하는 편이 더 좋을 듯?
+	// 이 방식은 파일을 2번 스캔해서 비효율적이니
+
+	imagePathProcessed := convertImagePath(raw, postDir, nil)
 
 	// 컨택스트 프론트매터 담는 변수
 	context := parser.NewContext()
 	var htmlBuf bytes.Buffer
 
-	// Convert를 실행하면 내부적으로 프론트매터는 잘라내서 context에 저장하고,
-	// 남은 본문은 HTML로 변환하여 htmlBuf에 담아줍니다.
+	// convert markdown to HTML and extract front matter (and return it as a map)
 	if err := md.Convert([]byte(imagePathProcessed), &htmlBuf, parser.WithContext(context)); err != nil {
 		return frontMatter{}, "", err
 	}
@@ -76,7 +120,7 @@ func parsePostMarkdown(raw string, postDir string, imageMap map[string]string) (
 
 	// If no metadata present, return defaults with content
 	if metaData == nil {
-		fm.Folder = postDir
+		fm.Slug = postDir
 		return fm, htmlBuf.String(), nil
 	}
 
@@ -93,7 +137,7 @@ func parsePostMarkdown(raw string, postDir string, imageMap map[string]string) (
 	if v, ok := metaData["summary"].(string); ok {
 		fm.Summary = v
 	}
-	fm.Folder = postDir
+	fm.Slug = postDir
 
 	// Tags can come in different shapes; normalize to []string
 	fm.Tag = []string{}
@@ -116,107 +160,25 @@ func parsePostMarkdown(raw string, postDir string, imageMap map[string]string) (
 	return fm, htmlBuf.String(), nil
 }
 
-func convertImagePath(markdown string, postDir string, imageMap map[string]string) string {
+func convertImagePath(markdown string, postTitle string, imageMap map[string]string) string {
 	imageDir := "/api/posts/images" // 이미지가 저장된 디렉토리 이름 (posts/ 폴더 내)
 
 	re := regexp.MustCompile(`!\[\[([^|\]]+)(?:\|([0-9]+))?\]\]`)
 
 	return re.ReplaceAllStringFunc(markdown, func(match string) string {
 		submatches := re.FindStringSubmatch(match)
-		fileName := submatches[1] // 예: "image.png"
-		width := submatches[2]    // 예: "350" (없으면 "")
-		storedName := fileName
-		if imageMap != nil {
-			if mapped, ok := imageMap[fileName]; ok {
-				storedName = mapped
-			}
-		}
+		fileName := submatches[1]                // ex: "image.png"
+		width := submatches[2]                   // ex: "350" (if not exist"")
+		storedName := postTitle + "-" + fileName // ex: postTitle-image.png
 
-		// 파일명 URL 인코딩 (공백은 %20 등으로 변환됨)
+		// url encooding image name to handle special characters and spaces
 		escapedName := url.PathEscape(storedName)
 
 		if width != "" {
-			return fmt.Sprintf(`<img src="%s" width="%s" />`, path.Join(imageDir, postDir, escapedName), width)
+			return fmt.Sprintf(`<img src="%s" width="%s" />`, path.Join(imageDir, escapedName), width)
 		}
-		return fmt.Sprintf(`<img src="%s" />`, path.Join(imageDir, postDir, escapedName))
+		return fmt.Sprintf(`<img src="%s" />`, path.Join(imageDir, escapedName))
 	})
-}
-
-func rewriteImageReferences(markdown string, imageMap map[string]string) string {
-	if len(imageMap) == 0 {
-		return markdown
-	}
-
-	re := regexp.MustCompile(`!\[\[([^|\]]+)(?:\|([0-9]+))?\]\]`)
-
-	return re.ReplaceAllStringFunc(markdown, func(match string) string {
-		submatches := re.FindStringSubmatch(match)
-		fileName := submatches[1]
-		width := submatches[2]
-		storedName, ok := imageMap[fileName]
-		if !ok {
-			storedName = fileName
-		}
-
-		if width != "" {
-			return fmt.Sprintf(`![[%s|%s]]`, storedName, width)
-		}
-		return fmt.Sprintf(`![[%s]]`, storedName)
-	})
-}
-
-func slugifyFileName(input string) string {
-	input = strings.ToLower(strings.TrimSpace(input))
-	var builder strings.Builder
-	lastDash := false
-
-	for _, r := range input {
-		switch {
-		case unicode.IsLetter(r), unicode.IsDigit(r):
-			builder.WriteRune(r)
-			lastDash = false
-		case r == '-' || r == '_' || unicode.IsSpace(r):
-			if !lastDash && builder.Len() > 0 {
-				builder.WriteByte('-')
-				lastDash = true
-			}
-		}
-	}
-
-	result := strings.Trim(builder.String(), "-")
-	if result == "" {
-		return "post"
-	}
-	return result
-}
-
-func uniqueImageName(postTitle, folderName, originalName string, index int, existing map[string]struct{}) string {
-	base := slugifyFileName(postTitle)
-	if base == "post" {
-		base = slugifyFileName(folderName)
-	}
-	if base == "" {
-		base = "post"
-	}
-
-	ext := filepath.Ext(originalName)
-	name := strings.TrimSuffix(originalName, ext)
-	name = slugifyFileName(name)
-	if name == "post" {
-		name = fmt.Sprintf("image-%d", index+1)
-	}
-
-	candidate := fmt.Sprintf("%s__%s%s", base, name, ext)
-	if _, ok := existing[candidate]; !ok {
-		return candidate
-	}
-
-	for suffix := 2; ; suffix++ {
-		fallback := fmt.Sprintf("%s__%s-%d%s", base, name, suffix, ext)
-		if _, ok := existing[fallback]; !ok {
-			return fallback
-		}
-	}
 }
 
 func filterPosts(posts []frontMatter, search string) []frontMatter {

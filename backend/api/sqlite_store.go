@@ -79,31 +79,27 @@ func postsDirPath() (string, error) {
 	return filepath.Join(wd, "posts"), nil
 }
 
-func (s *sqliteStore) migrate() error {
-	stmts := []string{
-		`CREATE TABLE IF NOT EXISTS posts (
-			folder TEXT PRIMARY KEY,
-			title TEXT NOT NULL DEFAULT '',
-			date TEXT NOT NULL DEFAULT '',
-			summary TEXT NOT NULL DEFAULT '',
-			cover_img TEXT NOT NULL DEFAULT '',
-			raw_markdown TEXT NOT NULL DEFAULT '',
-			rendered_html TEXT NOT NULL DEFAULT '',
-			source_hash TEXT NOT NULL DEFAULT '',
-			source_mtime INTEGER NOT NULL DEFAULT 0,
-			updated_at INTEGER NOT NULL DEFAULT 0
-		);`,
-		`CREATE TABLE IF NOT EXISTS tags (
-			tag TEXT PRIMARY KEY
-		);`,
-		`CREATE TABLE IF NOT EXISTS post_tags (
-			post_folder TEXT NOT NULL,
-			tag TEXT NOT NULL,
-			PRIMARY KEY (post_folder, tag),
-			FOREIGN KEY (post_folder) REFERENCES posts(folder) ON DELETE CASCADE,
-			FOREIGN KEY (tag) REFERENCES tags(tag) ON DELETE CASCADE
-		);`,
+func imageDirPath() (string, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", err
 	}
+	return filepath.Join(wd, "images"), nil
+}
+
+// migrate creates the necessary tables in the SQLite database if they do not already exist.
+func (s *sqliteStore) migrate() error {
+	stmts := []string{`
+		CREATE TABLE IF NOT EXISTS posts (
+			slug TEXT PRIMARY KEY,
+			title TEXT NOT NULL,
+			summary TEXT,
+			tags TEXT,
+			html_content TEXT NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		);`}
+	// slug: ID and url(ex: my-first-post)
+	// created_at: timestamp when the post was created(default to current timestamp)
 
 	for _, stmt := range stmts {
 		if _, err := s.DB.Exec(stmt); err != nil {
@@ -114,7 +110,7 @@ func (s *sqliteStore) migrate() error {
 	return nil
 }
 
-func (s *sqliteStore) SavePost(post frontMatter, rawMarkdown, renderedHTML string) error {
+func (s *sqliteStore) SavePost(post frontMatter, renderedHTML string) error {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
@@ -159,11 +155,11 @@ func persistPostTx(tx *sql.Tx, post frontMatter, rawMarkdown, renderedHTML strin
 			source_hash = excluded.source_hash,
 			source_mtime = excluded.source_mtime,
 			updated_at = excluded.updated_at`,
-		post.Folder, post.Title, post.Date, post.Summary, post.Cover, rawMarkdown, renderedHTML, sourceHash, time.Now().UnixNano(), time.Now().UnixNano()); err != nil {
+		post.Slug, post.Title, post.Date, post.Summary, post.Cover, rawMarkdown, renderedHTML, sourceHash, time.Now().UnixNano(), time.Now().UnixNano()); err != nil {
 		return err
 	}
 
-	if _, err := tx.Exec(`DELETE FROM post_tags WHERE post_folder = ?`, post.Folder); err != nil {
+	if _, err := tx.Exec(`DELETE FROM post_tags WHERE post_folder = ?`, post.Slug); err != nil {
 		return err
 	}
 
@@ -181,7 +177,7 @@ func persistPostTx(tx *sql.Tx, post frontMatter, rawMarkdown, renderedHTML strin
 		if _, err := tx.Exec(`INSERT INTO tags (tag) VALUES (?) ON CONFLICT(tag) DO NOTHING`, tag); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(`INSERT INTO post_tags (post_folder, tag) VALUES (?, ?)`, post.Folder, tag); err != nil {
+		if _, err := tx.Exec(`INSERT INTO post_tags (post_folder, tag) VALUES (?, ?)`, post.Slug, tag); err != nil {
 			return err
 		}
 	}
@@ -260,12 +256,12 @@ func (s *sqliteStore) RescanFromFilesystem() (processed int, skipped int, err er
 			continue
 		}
 
-		post, htmlBody, parseErr := parsePostMarkdown(string(raw), folder, nil)
+		post, htmlBody, parseErr := parseMarkdown(string(raw), folder, nil)
 		if parseErr != nil {
 			skipped++
 			continue
 		}
-		post.Folder = folder
+		post.Slug = folder
 		records = append(records, rescanRecord{
 			post:         post,
 			rawMarkdown:  string(raw),
@@ -317,10 +313,10 @@ func (s *sqliteStore) ListPosts() ([]frontMatter, error) {
 	posts := make([]frontMatter, 0)
 	for rows.Next() {
 		var post frontMatter
-		if err := rows.Scan(&post.Folder, &post.Title, &post.Date, &post.Summary, &post.Cover); err != nil {
+		if err := rows.Scan(&post.Slug, &post.Title, &post.Date, &post.Summary, &post.Cover); err != nil {
 			return nil, err
 		}
-		tags, err := s.loadTagsForFolder(post.Folder)
+		tags, err := s.loadTagsForFolder(post.Slug)
 		if err != nil {
 			return nil, err
 		}
@@ -335,7 +331,7 @@ func (s *sqliteStore) GetPost(folder string) (storedPost, error) {
 	row := s.DB.QueryRow(`SELECT folder, title, date, summary, cover_img, raw_markdown, rendered_html FROM posts WHERE folder = ?`, folder)
 
 	var post storedPost
-	if err := row.Scan(&post.Folder, &post.Title, &post.Date, &post.Summary, &post.Cover, &post.RawMarkdown, &post.Content); err != nil {
+	if err := row.Scan(&post.Slug, &post.Title, &post.Date, &post.Summary, &post.Cover, &post.RawMarkdown, &post.Content); err != nil {
 		return storedPost{}, err
 	}
 
