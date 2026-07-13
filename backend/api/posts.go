@@ -53,20 +53,20 @@ func (api *API) handlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	folder := strings.TrimPrefix(r.URL.Path, "/api/posts/")
-	folder = strings.TrimSpace(folder)
-	if folder == "" {
+	slug := strings.TrimPrefix(r.URL.Path, "/api/posts/")
+	slug = strings.TrimSpace(slug)
+	if slug == "" {
 		api.handlePosts(w, r)
 		return
 	}
 
-	if strings.Contains(folder, "/") {
+	if strings.Contains(slug, "/") {
 		WriteError(w, http.StatusNotFound, "post_not_found")
-		fmt.Printf("WARNING: Invalid post folder requested: %s\n", folder)
+		fmt.Printf("WARNING: Invalid post folder requested: %s\n", slug)
 		return
 	}
 
-	post, err := api.Store.GetPost(folder)
+	post, err := api.Store.GetPost(slug)
 	if err != nil {
 		WriteError(w, http.StatusNotFound, "post_not_found")
 		return
@@ -89,6 +89,21 @@ func (api *API) handlePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	WriteJSON(w, http.StatusOK, payload)
+}
+
+func (api *API) handleTags(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+
+	tags, err := api.Store.ListTags()
+	if err != nil {
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed_to_read_tags"})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, tags)
 }
 
 func parseMarkdown(raw string, postDir string, imageMap map[string]string) (frontMatter, string, error) {
@@ -189,6 +204,9 @@ func filterPosts(posts []frontMatter, search string) []frontMatter {
 	if search == "" {
 		return posts
 	}
+
+	// TODO : seperate tag search and keyword search(keyword affects title, summary)
+	// and unite two search results (OR condition) and remove duplicates
 
 	// 1. 태그 검색 모드 확인
 	if tagStrings, isFound := strings.CutPrefix(search, "#"); isFound {

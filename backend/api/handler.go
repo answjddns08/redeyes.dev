@@ -60,21 +60,6 @@ func (api *API) Register(mux *http.ServeMux) {
 	mux.Handle("/api/posts/images/", http.StripPrefix("/api/posts/images/", fs))
 }
 
-func (api *API) handleTags(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed")
-		return
-	}
-
-	tags, err := api.Store.ListTags()
-	if err != nil {
-		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed_to_read_tags"})
-		return
-	}
-
-	WriteJSON(w, http.StatusOK, tags)
-}
-
 func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method_not_allowed", http.StatusMethodNotAllowed)

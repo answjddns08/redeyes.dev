@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -20,12 +21,6 @@ type storedPost struct {
 	Content     string
 	SourceHash  string
 	SourceMTime int64
-}
-
-type rescanRecord struct {
-	post         frontMatter
-	rawMarkdown  string
-	renderedHTML string
 }
 
 func openSQLiteStore() (*sqliteStore, error) {
@@ -65,14 +60,6 @@ func sqliteDBPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(wd, "cache", "blog.db"), nil
-}
-
-func postsDirPath() (string, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(wd, "posts"), nil
 }
 
 func imageDirPath() (string, error) {
@@ -133,8 +120,8 @@ func (s *sqliteStore) SavePost(post frontMatter, renderedHTML string) error {
 }
 
 func insertPostData(tx *sql.Tx, post frontMatter, renderedHTML string) error {
-	if _, err := tx.Exec(`INSERT INTO posts (folder, title, date, summary, cover_img, rendered_html) VALUES (?, ?, ?, ?, ?, ?) 
-	ON CONFLICT(folder) DO UPDATE SET
+	if _, err := tx.Exec(`INSERT INTO posts (slug, title, date, tags, summary, cover_img, rendered_html) VALUES (?, ?, ?, ?, ?, ?, ?) 
+	ON CONFLICT(slug) DO UPDATE SET
 		slug = excluded.slug,
 		title = excluded.title,
 		date = excluded.date,
@@ -149,7 +136,7 @@ func insertPostData(tx *sql.Tx, post frontMatter, renderedHTML string) error {
 	return nil
 }
 
-func (s *sqliteStore) DeletePost(folder string) error {
+func (s *sqliteStore) DeletePost(slug string) error {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
@@ -163,7 +150,7 @@ func (s *sqliteStore) DeletePost(folder string) error {
 		}
 	}()
 
-	res, err := tx.Exec(`DELETE FROM posts WHERE folder = ?`, folder)
+	res, err := tx.Exec(`DELETE FROM posts WHERE slug = ?`, slug)
 	if err != nil {
 		return err
 	}
@@ -183,147 +170,54 @@ func (s *sqliteStore) DeletePost(folder string) error {
 	return nil
 }
 
-func (s *sqliteStore) RescanFromFilesystem() (processed int, skipped int, err error) {
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
-
-	postsDir, err := postsDirPath()
-	if err != nil {
-		return 0, 0, err
-	}
-
-	entries, err := os.ReadDir(postsDir)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	records := make([]rescanRecord, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		folder := entry.Name()
-		mdPath := filepath.Join(postsDir, folder, "index.md")
-		raw, readErr := os.ReadFile(mdPath)
-		if readErr != nil {
-			skipped++
-			continue
-		}
-
-		post, htmlBody, parseErr := parseMarkdown(string(raw), folder, nil)
-		if parseErr != nil {
-			skipped++
-			continue
-		}
-		post.Slug = folder
-		records = append(records, rescanRecord{
-			post:         post,
-			rawMarkdown:  string(raw),
-			renderedHTML: htmlBody,
-		})
-	}
-
-	tx, err := s.DB.Begin()
-	if err != nil {
-		return 0, 0, err
-	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
-
-	if _, err = tx.Exec(`DELETE FROM post_tags`); err != nil {
-		return 0, 0, err
-	}
-	if _, err = tx.Exec(`DELETE FROM posts`); err != nil {
-		return 0, 0, err
-	}
-	if _, err = tx.Exec(`DELETE FROM tags`); err != nil {
-		return 0, 0, err
-	}
-
-	for _, record := range records {
-		if err = insertPostData(tx, record.post, record.renderedHTML); err != nil {
-			return 0, 0, err
-		}
-		processed++
-	}
-
-	if err = tx.Commit(); err != nil {
-		return 0, 0, err
-	}
-
-	return processed, skipped, nil
-}
-
 func (s *sqliteStore) ListPosts() ([]frontMatter, error) {
-	rows, err := s.DB.Query(`SELECT folder, title, date, summary, cover_img FROM posts ORDER BY date DESC, folder ASC`)
+	rows, err := s.DB.Query(`SELECT slug, title, date, tags, cover_img, summary FROM posts ORDER BY date DESC, slug ASC`)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		err := rows.Close()
+		if err != nil {
+			fmt.Printf("failed to close rows: %v\n", err)
+		}
+	}()
 
 	posts := make([]frontMatter, 0)
 	for rows.Next() {
 		var post frontMatter
-		if err := rows.Scan(&post.Slug, &post.Title, &post.Date, &post.Summary, &post.Cover); err != nil {
+		if err := rows.Scan(&post.Slug, &post.Title, &post.Date, &post.Tags, &post.Summary, &post.Cover); err != nil {
 			return nil, err
 		}
-		tags, err := s.loadTagsForFolder(post.Slug)
-		if err != nil {
-			return nil, err
-		}
-		post.Tags = tags
 		posts = append(posts, post)
 	}
 
 	return posts, nil
 }
 
-func (s *sqliteStore) GetPost(folder string) (storedPost, error) {
-	row := s.DB.QueryRow(`SELECT folder, title, date, summary, cover_img, raw_markdown, rendered_html FROM posts WHERE folder = ?`, folder)
+func (s *sqliteStore) GetPost(slug string) (storedPost, error) {
+	row := s.DB.QueryRow(`SELECT slug, title, date, tags, cover_img, summary, html_content FROM posts WHERE slug = ?`, slug)
 
 	var post storedPost
-	if err := row.Scan(&post.Slug, &post.Title, &post.Date, &post.Summary, &post.Cover, &post.RawMarkdown, &post.Content); err != nil {
+	if err := row.Scan(&post.Slug, &post.Title, &post.Date, &post.Tags, &post.Summary, &post.Cover, &post.RawMarkdown, &post.Content); err != nil {
 		return storedPost{}, err
 	}
-
-	tags, err := s.loadTagsForFolder(folder)
-	if err != nil {
-		return storedPost{}, err
-	}
-	post.Tags = tags
 
 	return post, nil
 }
 
 func (s *sqliteStore) ListTags() ([]string, error) {
-	rows, err := s.DB.Query(`SELECT tag FROM tags ORDER BY tag ASC`)
+	rows, err := s.DB.Query(`SELECT tags FROM posts`)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	tags := make([]string, 0)
-	for rows.Next() {
-		var tag string
-		if err := rows.Scan(&tag); err != nil {
-			return nil, err
+	defer func() {
+		err := rows.Close()
+		if err != nil {
+			fmt.Printf("failed to close rows: %v\n", err)
 		}
-		tags = append(tags, tag)
-	}
+	}()
 
-	return tags, nil
-}
-
-func (s *sqliteStore) loadTagsForFolder(folder string) ([]string, error) {
-	rows, err := s.DB.Query(`SELECT tag FROM post_tags WHERE post_folder = ? ORDER BY tag ASC`, folder)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+	// TODO:use Set to avoid duplicate tags
 
 	tags := make([]string, 0)
 	for rows.Next() {
