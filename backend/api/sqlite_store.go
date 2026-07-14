@@ -205,6 +205,7 @@ func (s *sqliteStore) GetPost(slug string) (storedPost, error) {
 	return post, nil
 }
 
+// ListTags retrieves a list of unique tags from the posts in the SQLite database.
 func (s *sqliteStore) ListTags() ([]string, error) {
 	rows, err := s.DB.Query(`SELECT tags FROM posts`)
 	if err != nil {
@@ -219,14 +220,20 @@ func (s *sqliteStore) ListTags() ([]string, error) {
 
 	// TODO:use Set to avoid duplicate tags
 
-	tags := make([]string, 0)
+	tags := make(map[string]struct{})
 	for rows.Next() {
 		var tag string
 		if err := rows.Scan(&tag); err != nil {
 			return nil, err
 		}
-		tags = append(tags, tag)
+		tags[tag] = struct{}{}
 	}
 
-	return tags, nil
+	tagArr := make([]string, 0, len(tags))
+
+	for tag := range tags {
+		tagArr = append(tagArr, tag)
+	}
+
+	return tagArr, nil
 }
