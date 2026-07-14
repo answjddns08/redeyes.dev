@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	_ "modernc.org/sqlite"
@@ -17,10 +18,7 @@ type sqliteStore struct {
 
 type storedPost struct {
 	frontMatter
-	RawMarkdown string
-	Content     string
-	SourceHash  string
-	SourceMTime int64
+	Content string
 }
 
 func openSQLiteStore() (*sqliteStore, error) {
@@ -138,7 +136,6 @@ func insertPostData(tx *sql.Tx, post frontMatter, renderedHTML string) error {
 
 func (s *sqliteStore) DeletePost(slug string) error {
 	s.Mu.Lock()
-	defer s.Mu.Unlock()
 
 	tx, err := s.DB.Begin()
 	if err != nil {
@@ -165,6 +162,30 @@ func (s *sqliteStore) DeletePost(slug string) error {
 
 	if err = tx.Commit(); err != nil {
 		return err
+	}
+	s.Mu.Unlock()
+
+	// deleting associated images from the image directory
+	imageDir, err := imageDirPath()
+	if err != nil {
+		fmt.Printf("failed to resolve image directory: %v\n", err)
+		return nil
+	}
+
+	images, err := os.ReadDir(imageDir) // image lilst (ex: my-first-post_image1.png, my-first-post_image2.jpg)
+	if err != nil {
+		fmt.Printf("failed to read image directory: %v\n", err)
+		return nil
+	}
+
+	for _, img := range images {
+		if strings.HasPrefix(img.Name(), slug+"_") {
+			err := os.Remove(filepath.Join(imageDir, img.Name())) // delete image file
+			if err != nil {
+				fmt.Printf("failed to delete image file %s: %v\n", img.Name(), err)
+				continue
+			}
+		}
 	}
 
 	return nil
@@ -198,7 +219,7 @@ func (s *sqliteStore) GetPost(slug string) (storedPost, error) {
 	row := s.DB.QueryRow(`SELECT slug, title, date, tags, cover_img, summary, html_content FROM posts WHERE slug = ?`, slug)
 
 	var post storedPost
-	if err := row.Scan(&post.Slug, &post.Title, &post.Date, &post.Tags, &post.Summary, &post.Cover, &post.RawMarkdown, &post.Content); err != nil {
+	if err := row.Scan(&post.Slug, &post.Title, &post.Date, &post.Tags, &post.Cover, &post.Summary, &post.Content); err != nil {
 		return storedPost{}, err
 	}
 
@@ -217,8 +238,6 @@ func (s *sqliteStore) ListTags() ([]string, error) {
 			fmt.Printf("failed to close rows: %v\n", err)
 		}
 	}()
-
-	// TODO:use Set to avoid duplicate tags
 
 	tags := make(map[string]struct{})
 	for rows.Next() {

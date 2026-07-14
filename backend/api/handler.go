@@ -108,8 +108,7 @@ func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 	imageFiles := r.MultipartForm.File["images"]
 	imageNameMap := make(map[string]string, len(imageFiles))
 	for _, fileHeader := range imageFiles {
-		//storedName := uniqueImageName(previewPost.Title, slugName, fileHeader.Filename, index, usedNames)
-		storedName := slugName + "_" + fileHeader.Filename
+		storedName := slugName + "_" + fileHeader.Filename // example: my-first-post_image1.png, slug: my-first-post, filename: image1.png
 		imageNameMap[fileHeader.Filename] = storedName
 	}
 
@@ -180,6 +179,14 @@ func (api *API) handlePostDown(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, "missing_post_name")
 		return
 	}
+
+	err := api.Store.DeletePost(name)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, "failed_to_delete_post")
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]string{"message": "post deleted successfully"})
 }
 
 func (api *API) requireAuth(w http.ResponseWriter, r *http.Request) bool {

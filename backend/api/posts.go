@@ -62,7 +62,7 @@ func (api *API) handlePost(w http.ResponseWriter, r *http.Request) {
 
 	if strings.Contains(slug, "/") {
 		WriteError(w, http.StatusNotFound, "post_not_found")
-		fmt.Printf("WARNING: Invalid post folder requested: %s\n", slug)
+		fmt.Printf("WARN Invalid post folder requested: %s\n", slug)
 		return
 	}
 
