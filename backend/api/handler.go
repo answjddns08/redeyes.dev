@@ -66,7 +66,8 @@ func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method_not_allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !api.requireAuth(w, r) {
+	if !api.requireAuth(r) {
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
@@ -164,12 +165,13 @@ func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) handlePostDown(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodDelete {
 		http.Error(w, "method_not_allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	if !api.requireAuth(w, r) {
+	if !api.requireAuth(r) {
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
@@ -190,7 +192,7 @@ func (api *API) handlePostDown(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "post deleted successfully"})
 }
 
-func (api *API) requireAuth(w http.ResponseWriter, r *http.Request) bool {
+func (api *API) requireAuth(r *http.Request) bool {
 	if api.adminToken == "" {
 		return true
 	}
@@ -198,13 +200,11 @@ func (api *API) requireAuth(w http.ResponseWriter, r *http.Request) bool {
 	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
 	const bearerPrefix = "Bearer "
 	if !strings.HasPrefix(authHeader, bearerPrefix) {
-		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return false
 	}
 
 	token := strings.TrimSpace(strings.TrimPrefix(authHeader, bearerPrefix))
 	if token == "" || token != api.adminToken {
-		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return false
 	}
 
