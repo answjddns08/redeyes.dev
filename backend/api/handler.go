@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -94,21 +95,21 @@ func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	imageDir, err := imageDirPath()
 	if err != nil {
-		// make image directory if it doesn't exist
-		api.Logger.Printf("failed to resolve image directory: %v\ngenerating new image directory", err)
+		api.Logger.Printf("failed to resolve image directory: %v", err)
+		WriteError(w, http.StatusInternalServerError, "failed_to_resolve_image_dir")
+		return
+	}
 
-		err = os.MkdirAll(imageDir, os.ModePerm)
-		if err != nil {
-			api.Logger.Printf("failed to create image folder: %v", err)
-			WriteError(w, http.StatusInternalServerError, "failed_to_create_folder")
-			return
-		}
+	if err := os.MkdirAll(imageDir, 0o755); err != nil {
+		api.Logger.Printf("failed to create image folder: %v", err)
+		WriteError(w, http.StatusInternalServerError, "failed_to_create_folder")
+		return
 	}
 
 	imageFiles := r.MultipartForm.File["images"]
 	imageNameMap := make(map[string]string, len(imageFiles))
-	for _, fileHeader := range imageFiles {
-		storedName := slugName + "_" + fileHeader.Filename // example: my-first-post_image1.png, slug: my-first-post, filename: image1.png
+	for index, fileHeader := range imageFiles {
+		storedName := fmt.Sprintf("%s_%02d_%s", slugName, index+1, filepath.Base(fileHeader.Filename))
 		imageNameMap[fileHeader.Filename] = storedName
 	}
 
@@ -153,7 +154,7 @@ func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := api.Store.SavePost(finalPost, htmlBody); err != nil {
+	if err := api.Store.SavePost(finalPost, mdFile, htmlBody); err != nil {
 		api.Logger.Printf("failed to persist post %s to sqlite: %v", slugName, err)
 		WriteError(w, http.StatusInternalServerError, "failed_to_save_post")
 		return

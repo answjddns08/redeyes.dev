@@ -16,6 +16,11 @@ coverage
 
 posts/
 
+cache/
+images/
+
+.env
+
 /cypress/videos/
 /cypress/screenshots/
 

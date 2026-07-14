@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -73,12 +74,13 @@ func (s *sqliteStore) migrate() error {
 	stmts := []string{`
 		CREATE TABLE IF NOT EXISTS posts (
 			slug TEXT PRIMARY KEY,
-			title TEXT NOT NULL,
-			date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			tags TEXT,
-			cover_img TEXT,
-			summary TEXT,
-			html_content TEXT NOT NULL,
+			title TEXT NOT NULL DEFAULT '',
+			date TEXT NOT NULL DEFAULT '',
+			tags TEXT NOT NULL DEFAULT '[]',
+			cover_img TEXT NOT NULL DEFAULT '',
+			summary TEXT NOT NULL DEFAULT '',
+			raw_markdown TEXT NOT NULL DEFAULT '',
+			html_content TEXT NOT NULL DEFAULT ''
 		);`}
 	// slug: ID and url(ex: my-first-post)
 	// created_at: timestamp when the post was created(default to current timestamp)
@@ -89,10 +91,72 @@ func (s *sqliteStore) migrate() error {
 		}
 	}
 
+	if err := s.ensureColumn("posts", "raw_markdown", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("posts", "html_content", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("posts", "tags", "TEXT NOT NULL DEFAULT '[]'"); err != nil {
+		return err
+	}
+
+	hasRenderedHTML, err := s.columnExists("posts", "rendered_html")
+	if err != nil {
+		return err
+	}
+	hasHTMLContent, err := s.columnExists("posts", "html_content")
+	if err != nil {
+		return err
+	}
+	if hasRenderedHTML && hasHTMLContent {
+		if _, err := s.DB.Exec(`UPDATE posts SET html_content = rendered_html WHERE (html_content = '' OR html_content IS NULL) AND rendered_html IS NOT NULL AND rendered_html != ''`); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func (s *sqliteStore) SavePost(post frontMatter, renderedHTML string) error {
+func (s *sqliteStore) ensureColumn(tableName, columnName, columnDefinition string) error {
+	exists, err := s.columnExists(tableName, columnName)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+
+	_, err = s.DB.Exec(fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s %s`, tableName, columnName, columnDefinition))
+	return err
+}
+
+func (s *sqliteStore) columnExists(tableName, columnName string) (bool, error) {
+	rows, err := s.DB.Query(fmt.Sprintf(`PRAGMA table_info(%s)`, tableName))
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var cid int
+		var name string
+		var columnType string
+		var notnull int
+		var defaultValue sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &columnType, &notnull, &defaultValue, &pk); err != nil {
+			return false, err
+		}
+		if name == columnName {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func (s *sqliteStore) SavePost(post frontMatter, rawMarkdown, renderedHTML string) error {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
@@ -106,7 +170,7 @@ func (s *sqliteStore) SavePost(post frontMatter, renderedHTML string) error {
 		}
 	}()
 
-	if err = insertPostData(tx, post, renderedHTML); err != nil {
+	if err = insertPostData(tx, post, rawMarkdown, renderedHTML); err != nil {
 		return err
 	}
 
@@ -117,17 +181,22 @@ func (s *sqliteStore) SavePost(post frontMatter, renderedHTML string) error {
 	return nil
 }
 
-func insertPostData(tx *sql.Tx, post frontMatter, renderedHTML string) error {
-	if _, err := tx.Exec(`INSERT INTO posts (slug, title, date, tags, summary, cover_img, rendered_html) VALUES (?, ?, ?, ?, ?, ?, ?) 
+func insertPostData(tx *sql.Tx, post frontMatter, rawMarkdown, renderedHTML string) error {
+	tagsJSON, err := json.Marshal(post.Tags)
+	if err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(`INSERT INTO posts (slug, title, date, tags, cover_img, summary, raw_markdown, html_content) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT(slug) DO UPDATE SET
-		slug = excluded.slug,
 		title = excluded.title,
 		date = excluded.date,
 		tags = excluded.tags,
 		cover_img = excluded.cover_img,
 		summary = excluded.summary,
+		raw_markdown = excluded.raw_markdown,
 		html_content = excluded.html_content
-		`, post.Slug, post.Title, post.Date, post.Tags, post.Cover, post.Summary, renderedHTML); err != nil {
+		`, post.Slug, post.Title, post.Date, string(tagsJSON), post.Cover, post.Summary, rawMarkdown, renderedHTML); err != nil {
 		return err
 	}
 
@@ -136,6 +205,7 @@ func insertPostData(tx *sql.Tx, post frontMatter, renderedHTML string) error {
 
 func (s *sqliteStore) DeletePost(slug string) error {
 	s.Mu.Lock()
+	defer s.Mu.Unlock()
 
 	tx, err := s.DB.Begin()
 	if err != nil {
@@ -163,32 +233,36 @@ func (s *sqliteStore) DeletePost(slug string) error {
 	if err = tx.Commit(); err != nil {
 		return err
 	}
-	s.Mu.Unlock()
 
 	// deleting associated images from the image directory
 	imageDir, err := imageDirPath()
 	if err != nil {
-		fmt.Printf("failed to resolve image directory: %v\n", err)
-		return nil
+		return err
 	}
 
 	images, err := os.ReadDir(imageDir) // image lilst (ex: my-first-post_image1.png, my-first-post_image2.jpg)
 	if err != nil {
-		fmt.Printf("failed to read image directory: %v\n", err)
-		return nil
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
 	}
+
+	var deleteErr error
 
 	for _, img := range images {
 		if strings.HasPrefix(img.Name(), slug+"_") {
 			err := os.Remove(filepath.Join(imageDir, img.Name())) // delete image file
 			if err != nil {
 				fmt.Printf("failed to delete image file %s: %v\n", img.Name(), err)
-				continue
+				if deleteErr == nil {
+					deleteErr = err
+				}
 			}
 		}
 	}
 
-	return nil
+	return deleteErr
 }
 
 func (s *sqliteStore) ListPosts() ([]frontMatter, error) {
@@ -206,9 +280,11 @@ func (s *sqliteStore) ListPosts() ([]frontMatter, error) {
 	posts := make([]frontMatter, 0)
 	for rows.Next() {
 		var post frontMatter
-		if err := rows.Scan(&post.Slug, &post.Title, &post.Date, &post.Tags, &post.Summary, &post.Cover); err != nil {
+		var tagsJSON string
+		if err := rows.Scan(&post.Slug, &post.Title, &post.Date, &tagsJSON, &post.Cover, &post.Summary); err != nil {
 			return nil, err
 		}
+		post.Tags = decodeTags(tagsJSON)
 		posts = append(posts, post)
 	}
 
@@ -219,9 +295,11 @@ func (s *sqliteStore) GetPost(slug string) (storedPost, error) {
 	row := s.DB.QueryRow(`SELECT slug, title, date, tags, cover_img, summary, html_content FROM posts WHERE slug = ?`, slug)
 
 	var post storedPost
-	if err := row.Scan(&post.Slug, &post.Title, &post.Date, &post.Tags, &post.Cover, &post.Summary, &post.Content); err != nil {
+	var tagsJSON string
+	if err := row.Scan(&post.Slug, &post.Title, &post.Date, &tagsJSON, &post.Cover, &post.Summary, &post.Content); err != nil {
 		return storedPost{}, err
 	}
+	post.Tags = decodeTags(tagsJSON)
 
 	return post, nil
 }
@@ -241,11 +319,17 @@ func (s *sqliteStore) ListTags() ([]string, error) {
 
 	tags := make(map[string]struct{})
 	for rows.Next() {
-		var tag string
-		if err := rows.Scan(&tag); err != nil {
+		var tagsJSON string
+		if err := rows.Scan(&tagsJSON); err != nil {
 			return nil, err
 		}
-		tags[tag] = struct{}{}
+		for _, tag := range decodeTags(tagsJSON) {
+			tag = strings.TrimSpace(tag)
+			if tag == "" {
+				continue
+			}
+			tags[tag] = struct{}{}
+		}
 	}
 
 	tagArr := make([]string, 0, len(tags))
@@ -255,4 +339,21 @@ func (s *sqliteStore) ListTags() ([]string, error) {
 	}
 
 	return tagArr, nil
+}
+
+func decodeTags(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return []string{}
+	}
+
+	var tags []string
+	if err := json.Unmarshal([]byte(raw), &tags); err == nil {
+		return tags
+	}
+
+	parts := strings.Split(raw, ",")
+	for i, part := range parts {
+		parts[i] = strings.TrimSpace(strings.Trim(part, "[]\""))
+	}
+	return parts
 }
