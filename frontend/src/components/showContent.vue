@@ -3,59 +3,77 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { marked } from 'marked';
+import { computed, ref, watch } from "vue";
 
 const props = defineProps({
   content: {
     type: String,
     required: true,
-    default: ''
+    default: "",
   },
   headings: {
     type: Array,
     required: false,
-    default: () => []
+    default: () => [],
   },
 });
 
-const emit = defineEmits(['update:headings']);
+const emit = defineEmits(["update:headings"]);
 
-const renderedContent = computed(() => {
-  // content가 없으면 빈 문자열 반환
-  if (!props.content) {
-    return '';
-  }
+// 추출된 제목 정보를 저장할 반응형 변수 선언
+const extractedHeadings = ref([]);
+
+// HTML 문자열에서 제목을 추출하고 슬러그를 생성하는 함수
+const extractHeadings = (htmlString) => {
+  if (!htmlString) return [];
 
   const headingsArray = [];
 
-  const renderer = new marked.Renderer();
+  // DOMParser를 사용하여 문자열을 실제 DOM 객체로 변환
+  const parser = new DOMParser();
+  // 'text/html'로 파싱하여 전체 구조를 가져옵니다.
+  const doc = parser.parseFromString(htmlString, "text/html");
 
-  renderer.heading = function ({ tokens, depth }) {
-    headingsArray.push({ tokens, depth });
+  // 모든 heading 태그(h1~h6)를 선택합니다.
+  const headingElements = doc.querySelectorAll("h1, h2, h3, h4, h5, h6");
 
-    const headingText = this.parser.parseInline(tokens);
-    // ID를 위한 텍스트 정리 (공백을 하이픈으로, 특수문자 제거)
+  headingElements.forEach((el) => {
+    const depth = parseInt(el.tagName.substring(1)); // 'h1' -> 1
+    const headingText = el.textContent.trim();
+
+    // ID를 위한 텍스트 정리 (기존 marked 로직 재현)
     const headingId = headingText
       .toLowerCase()
-      .replace(/[^\w\s-]/g, '') // 특수문자 제거
-      .replace(/\s+/g, '-') // 공백을 하이픈으로
+      .replace(/[^\w\s-]/g, "") // 특수문자 제거 (알파벳, 숫자, 공백, 하이픈만 남김)
+      .replace(/\s+/g, "-") // 공백을 하이픈으로 치환
       .trim();
 
-    return `<h${depth} id="${headingId}">${headingText}</h${depth}>`;
-  };
-
-  const rendered = marked(props.content, {
-    renderer,
-    gfm: true,
-    breaks: true,
+    headingsArray.push({
+      id: headingId,
+      depth: depth,
+      text: headingText,
+    });
   });
 
-  // headings 업데이트 emit
-  emit('update:headings', headingsArray);
+  return headingsArray;
+};
 
-  return rendered;
+// computed 속성: 이제 단순하게 content를 반환합니다 (v-html이 렌더링 담당)
+const renderedContent = computed(() => {
+  return props.content;
 });
+
+// Watcher를 사용하여 content가 변경될 때마다 제목을 추출합니다.
+watch(
+  () => props.content,
+  (newContent) => {
+    const extracted = extractHeadings(newContent);
+    extractedHeadings.value = extracted;
+    // 부모 컴포넌트에 제목 목록 업데이트 알림
+    emit("update:headings", extracted);
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped>
@@ -133,11 +151,24 @@ const renderedContent = computed(() => {
   border-radius: 0.5rem;
 }
 
+:deep(blockquote p) {
+  margin: 0;
+}
+
+:deep(blockquote code) {
+  background-color: var(--accent-color);
+  font-style: italic;
+  color: var(--bg-primary);
+
+  padding: 0.15rem 0.25rem 0.15rem 0.25rem;
+  margin-right: 0.15rem;
+}
+
 :deep(code) {
   background-color: var(--border-color);
-  padding: 0.25rem 0.5rem;
+  padding: 0.25rem 0.35rem;
+  margin-right: 0.15rem;
   border-radius: 0.25rem;
-  font-family: "Courier New", monospace;
   font-size: 0.875rem;
 }
 
@@ -177,7 +208,7 @@ const renderedContent = computed(() => {
 :deep(img) {
   max-width: 100%;
   height: auto;
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   margin: 1rem 0;
 }
 

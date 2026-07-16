@@ -1,7 +1,7 @@
 <template>
   <div class="navbar-fixed">
     <div class="left-group">
-      <RouterLink class="brand" to="/">Kellog</RouterLink>
+      <RouterLink class="brand" to="/">Redeyes dev</RouterLink>
       <form @submit.prevent="search">
         <label for="default-search" class="sr-only">Search</label>
         <input
@@ -38,6 +38,8 @@ import { useDarkModeStore } from "@/stores/darkModeStore";
 
 const router = useRouter();
 const darkModeStore = useDarkModeStore();
+
+// FIX: hover color has low contrast
 
 const searchForm = ref("");
 
@@ -84,6 +86,12 @@ function search() {
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: 0.01em;
+
+  transition: all 0.3s ease;
+}
+
+.brand:hover {
+  color: #dc143c;
 }
 
 .buttons {

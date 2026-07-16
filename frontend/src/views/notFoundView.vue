@@ -9,10 +9,7 @@
     </div>
     <p class="text-2xl mt-4 font-bold" style="color: var(--text-primary)">Page Not Found</p>
 
-    <p class="mt-2" style="color: var(--text-secondary)">
-      The page you are looking for does not exist.
-    </p>
-    <p class="my-2" style="color: var(--text-secondary)">You can go back to the home page.</p>
+    <p class="mt-2" style="color: var(--text-secondary)">It looks like you're lost...</p>
 
     <button @click="$router.push('/')">Go to Home</button>
   </main>
@@ -67,7 +64,7 @@ button {
   border-radius: 0.375rem;
   padding: 0.5rem 1rem;
 
-  color: white;
+  color: var(--text-primary);
 
   border: 1px solid transparent;
 

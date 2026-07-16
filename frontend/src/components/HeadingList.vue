@@ -1,13 +1,13 @@
 <template>
   <div class="relative">
-    <div v-if="headings.headings.length" class="block">
+    <div v-if="headings.length" class="block">
       <button
-        v-for="(heading, index) in headings.headings"
+        v-for="(heading, index) in headings"
         :class="[`h${heading.depth}`, { active: activeHeadingIndex === index }]"
         :key="index"
-        @click="scrollToHeading(heading.tokens[0].text)"
+        @click="scrollToHeading(heading.text)"
       >
-        {{ heading.tokens[0].text }}
+        {{ heading.text }}
       </button>
     </div>
   </div>
@@ -19,7 +19,7 @@ import { watch, ref, onMounted, onUnmounted, nextTick } from "vue";
 const props = defineProps({
   headings: {
     Type: Array(Object),
-    default: {},
+    default: () => [],
   },
 });
 
@@ -66,9 +66,7 @@ const setupIntersectionObserver = () => {
         const activeText = activeHeading.textContent.trim();
 
         // headings 배열에서 해당 헤딩의 인덱스 찾기
-        const index = props.headings.headings?.findIndex(
-          (heading) => heading.tokens[0].text.trim() === activeText,
-        );
+        const index = props.headings.findIndex((heading) => heading.text.trim() === activeText);
 
         if (index !== -1) {
           activeHeadingIndex.value = index;
@@ -168,7 +166,7 @@ button.active {
   color: var(--accent-color);
   background-color: var(--shadow);
   border-radius: 0.25rem;
-  transform: translateX(0.5rem);
+  transform: translateX(0.25rem);
   font-weight: 700;
   border-left: 3px solid var(--accent-color);
   padding-left: 0.5rem;
@@ -196,10 +194,10 @@ button.active {
 
 /* 전역 헤딩 스크롤 여백 설정 */
 :global(h1, h2, h3, h4, h5, h6) {
-  scroll-margin-top: 6rem; /* 상단에 고정된 요소 높이에 맞춰 조정 */
+  scroll-margin-top: 8rem; /* 상단에 고정된 요소 높이에 맞춰 조정 */
 }
 
-@media (max-width: 1400px) {
+@media (max-width: 1850px) {
   .block {
     display: none;
   }

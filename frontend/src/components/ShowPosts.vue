@@ -53,7 +53,7 @@
 
         <!-- 모든 포스트 로드 완료 메시지 -->
         <div v-if="!hasMorePosts && posts.length > 0" class="end-message">
-          <p>모든 포스트를 확인했습니다! 🎉</p>
+          <p>모든 포스트를 확인했습니다!</p>
         </div>
       </div>
 
@@ -92,8 +92,6 @@ import { usePostStore } from "@/stores/postStore";
 const route = useRoute();
 const postStore = usePostStore();
 
-axios.defaults.withCredentials = true;
-
 // 상태 관리
 const posts = ref([]);
 const displayLimit = ref(10); // 처음에 보여줄 포스트 수
@@ -118,12 +116,6 @@ const hasMorePosts = computed(() => {
 const getImageUrl = (postFolder, imageName) => {
   return `https://blog.redeyes.dev/api/posts/images/${postFolder}/${imageName}`;
 };
-
-/*
-   TODO: 잠만 캐시 데이터가 있으면 아예 백엔드로 요청을 안보냄
-   그럼 캐시 만료 기간 안에 데이터 바뀌면 그게 적용이 안됨
-   나중에 백엔드에서 캐시 시스템을 만드는 게 나을 듯
-*/
 
 /** get Posts */
 async function getPosts() {
@@ -245,7 +237,6 @@ p {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  min-height: 100vh;
 }
 
 .posts-main-wrapper {
@@ -253,7 +244,6 @@ p {
   flex-direction: column;
   align-items: center;
   margin-top: 1.5rem;
-  flex: 1;
   min-width: 0;
   max-width: 47rem;
 }
@@ -284,13 +274,12 @@ p {
 }
 
 .postImageBlock {
-  background-color: var(--accent-soft);
+  background-color: var(--accent-color);
   position: relative;
   border-radius: 0.85rem;
   overflow: hidden;
   margin: 0.75rem;
   width: 9.6rem;
-  min-height: calc(100% - 1.5rem);
   flex-shrink: 0;
 }
 

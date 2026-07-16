@@ -1,30 +1,10 @@
 <template>
   <footer class="simple-footer">
     <div class="footer-content">
-      <p>© 2025 redeyes. All rights reserved.</p>
-      <p class="footer-subtitle">Built with ❤️ using Vue.js</p>
+      <p>© {{ new Date().getFullYear() }} redeyes. All rights reserved.</p>
     </div>
   </footer>
 </template>
-
-<!-- <template>
-  <footer class="footer">
-    <div class="footer-content">
-      <p class="footer-description">
-        개발과 기술에 대한 이야기를 담은 redeyes의 블로그
-      </p>
-      <div class="footer-stats">
-        <span>{{ totalPosts }} Posts</span>
-        <span>•</span>
-        <span>Built with Vue.js</span>
-      </div>
-    </div>
-    
-    <div class="footer-bottom">
-      <p>© 2025 redeyes</p>
-    </div>
-  </footer>
-</template> -->
 
 <script setup>
 // 컴포넌트 이름 정의
