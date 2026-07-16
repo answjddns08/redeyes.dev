@@ -4,96 +4,99 @@ import axios from "axios";
 
 export const useTagStore = defineStore("tags", () => {
   // State
+  /** @type {import('vue').Ref<string[]>} */
   const tags = ref([]);
+
+  /** @type {import('vue').Ref<string[]>} */
   const selectedTags = ref([]);
+
+  /** @type {import('vue').Ref<number|null>} */
   const lastFetched = ref(null);
-  const cacheExpiry = ref(24 * 60 * 60 * 1000); // 24시간 캐시 유효시간
+  const cacheTime = 1000 * 60 * 60 * 24; // 24 hours
 
-  // Getters (Computed)
-  const isCacheValid = computed(() => {
-    return lastFetched.value && Date.now() - lastFetched.value < cacheExpiry.value;
-  });
-
+  // Getters
   const filteredTags = computed(() => {
     return tags.value.filter((tag) => tag && tag.trim() !== "");
   });
 
   // Actions
+  /**
+   * load tags from localStorage
+   * @returns true if loaded from localStorage, false otherwise
+   */
   const loadFromLocalStorage = () => {
     try {
       const cachedData = localStorage.getItem("tagStore");
-      if (cachedData) {
-        const { tags: cachedTags, lastFetched: cachedLastFetched } = JSON.parse(cachedData);
-        tags.value = cachedTags || [];
-        lastFetched.value = cachedLastFetched;
 
-        //console.log("Tags loaded from localStorage:", tags.value.length, "tags");
+      if (!cachedData) return false;
+
+      const { tags: cachedTags, lastFetched: cachedTime } = JSON.parse(cachedData) || {};
+
+      if (cachedTags && Array.isArray(cachedTags)) {
+        tags.value = cachedTags;
+        lastFetched.value = cachedTime || null;
         return true;
       }
+
+      return false;
     } catch (error) {
       console.error("Error loading tags from localStorage:", error);
       localStorage.removeItem("tagStore");
+      return false;
     }
-    return false;
   };
 
   const saveToLocalStorage = () => {
     try {
+      lastFetched.value = Date.now();
       const dataToSave = {
         tags: tags.value,
         lastFetched: lastFetched.value,
       };
       localStorage.setItem("tagStore", JSON.stringify(dataToSave));
-      //console.log("Tags saved to localStorage");
-    } catch (error) {
-      console.error("Error saving tags to localStorage:", error);
+    } catch {
+      console.error("Error saving tags to localStorage");
     }
   };
 
-  const fetchTags = async (forceRefresh = false) => {
-    // 캐시가 유효하고 강제 새로고침이 아닌 경우 서버 요청 건너뛰기
-    if (!forceRefresh && isCacheValid.value && tags.value.length > 0) {
-      //console.log("Using cached tags, skipping server request");
-      return tags.value;
-    }
-
+  /**
+   * fetch tags from server and update localStorage
+   * @returns {Promise<string[]>} tags from server or cached tags if server fails
+   */
+  const fetchTagsFromServer = async () => {
     try {
-      //console.log("Fetching tags from server...");
+      /** @type {import('axios').AxiosResponse<string[]>} */
       const { data } = await axios.get("https://blog.redeyes.dev/api/tags/");
-
       tags.value = data || [];
-      lastFetched.value = Date.now();
-
-      // localStorage에 저장
       saveToLocalStorage();
-
-      //console.log("Tags fetched and cached:", tags.value.length, "tags");
       return tags.value;
     } catch (error) {
-      console.error("Error fetching tags:", error);
-      // 오류 발생 시 캐시된 데이터 사용
-      if (tags.value.length > 0) {
-        //console.log("Using cached tags due to fetch error");
-        return tags.value;
-      }
-      throw error;
+      console.error("Error fetching tags from server:", error);
+      return tags.value;
     }
   };
 
+  /**
+   *  initialize tags from localStorage or server, depending on cache validity
+   * @returns {Promise<string[]>} tags from cache or server
+   */
   const initializeTags = async () => {
     selectedTags.value = [];
 
-    // 먼저 localStorage에서 로드 시도
-    const loadedFromCache = loadFromLocalStorage();
+    const iscacheLoaded = loadFromLocalStorage();
 
-    // 캐시가 유효하면 서버 요청 건너뛰기
-    if (loadedFromCache && isCacheValid.value) {
-      //console.log("Using valid cached tags");
-      return tags.value;
+    if (!iscacheLoaded) {
+      const serverData = await fetchTagsFromServer();
+      return serverData && serverData.length > 0 ? serverData : [];
     }
 
-    // 캐시가 없거나 만료된 경우 서버에서 가져오기
-    return await fetchTags(true);
+    if (lastFetched.value && Date.now() - lastFetched.value > cacheTime) {
+      fetchTagsFromServer().then(() => {
+        console.log("Background cache update finished.");
+      });
+    }
+
+    return tags.value;
   };
 
   const toggleTag = (tag) => {
@@ -105,37 +108,22 @@ export const useTagStore = defineStore("tags", () => {
     }
   };
 
-  const refreshTags = async () => {
-    //console.log("Forcing tag refresh...");
-    return await fetchTags(true);
-  };
-
   const clearCache = () => {
     tags.value = [];
     selectedTags.value = [];
     lastFetched.value = null;
     localStorage.removeItem("tagStore");
-    //console.log("Tag cache cleared");
   };
 
   return {
-    // State
     tags,
     selectedTags,
-    lastFetched,
-    cacheExpiry,
-
-    // Getters
-    isCacheValid,
     filteredTags,
-
-    // Actions
     loadFromLocalStorage,
     saveToLocalStorage,
-    fetchTags,
+    fetchTagsFromServer,
     initializeTags,
     toggleTag,
-    refreshTags,
     clearCache,
   };
 });

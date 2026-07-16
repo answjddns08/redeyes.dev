@@ -16,57 +16,23 @@
 </template>
 
 <script setup>
-import showTags from "@/components/showTags.vue";
-import { useHead } from "@vueuse/head";
+import { onMounted } from "vue";
 import ShowPosts from "@/components/ShowPosts.vue";
 import AuthorField from "@/components/authorField.vue";
+import showTags from "@/components/showTags.vue"; // Import Tag Store's component
 
-// 홈페이지 SEO 메타태그 설정
-useHead({
-  title: "Kellog Blog - 개발 블로그",
-  meta: [
-    {
-      name: "description",
-      content:
-        "개발자 redeyes의 개인 블로그입니다. 웹 개발, 프로그래밍, 기술 트렌드에 대한 글을 공유합니다.",
-    },
-    {
-      name: "keywords",
-      content: "개발 블로그, 웹개발, 프로그래밍, Vue.js, JavaScript, Node.js, 기술 블로그",
-    },
-    // Open Graph
-    {
-      property: "og:title",
-      content: "Kellog Blog - 개발 블로그",
-    },
-    {
-      property: "og:description",
-      content:
-        "개발자 redeyes의 개인 블로그입니다. 웹 개발, 프로그래밍, 기술 트렌드에 대한 글을 공유합니다.",
-    },
-    {
-      property: "og:type",
-      content: "website",
-    },
-    {
-      property: "og:url",
-      content: "https://blog.redeyes.dev",
-    },
-    // Twitter Card
-    {
-      name: "twitter:card",
-      content: "summary",
-    },
-    {
-      name: "twitter:title",
-      content: "Kellog Blog - 개발 블로그",
-    },
-    {
-      name: "twitter:description",
-      content:
-        "개발자 redeyes의 개인 블로그입니다. 웹 개발, 프로그래밍, 기술 트렌드에 대한 글을 공유합니다.",
-    },
-  ],
+// Store Imports
+import { usePostStore } from "@/stores/postStore";
+
+const postStore = usePostStore();
+
+// Lifecycle hook: 데이터 로딩 로직 실행
+onMounted(async () => {
+  scrollTo(0, 0); // 페이지 최상단으로 스크롤
+
+  // 2. Post Store 초기화 (서버 캐시 유효성 체크 우선)
+  // 이 함수가 로컬 캐시를 먼저 로드하고, 서버 타임스탬프를 기준으로 갱신 여부를 결정합니다.
+  await postStore.initializePosts();
 });
 </script>
 
