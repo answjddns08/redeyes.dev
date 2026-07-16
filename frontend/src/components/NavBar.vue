@@ -39,8 +39,6 @@ import { useDarkModeStore } from "@/stores/darkModeStore";
 const router = useRouter();
 const darkModeStore = useDarkModeStore();
 
-// FIX: hover color has low contrast
-
 const searchForm = ref("");
 
 function search() {
@@ -98,7 +96,7 @@ function search() {
   font-size: 1rem;
   font-weight: 600;
   color: var(--text-secondary);
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
 }
 
 .buttons:hover {

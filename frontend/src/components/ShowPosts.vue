@@ -8,13 +8,12 @@
           :key="post.folder"
           v-for="post in displayedPosts"
         >
-          <div class="postImageBlock">
+          <div class="postImageBlock" :class="{ enablePaint: !post.coverImg }">
             <img
               v-if="post.coverImg"
               :src="getImageUrl(post.folder, post.coverImg)"
               alt="cover img"
               class="w-full h-full object-cover"
-              loading="lazy"
             />
             <div v-else class="placeholder-default">
               <font-awesome-icon
@@ -114,7 +113,7 @@ const hasMorePosts = computed(() => {
  * @param {string} imageName
  */
 const getImageUrl = (postFolder, imageName) => {
-  return `https://blog.redeyes.dev/api/posts/images/${postFolder}/${imageName}`;
+  return `https://blog.redeyes.dev/api/posts/images/${postFolder}_01_${imageName}`;
 };
 
 /** get Posts */
@@ -274,13 +273,16 @@ p {
 }
 
 .postImageBlock {
-  background-color: var(--accent-color);
   position: relative;
   border-radius: 0.85rem;
   overflow: hidden;
   margin: 0.75rem;
   width: 9.6rem;
   flex-shrink: 0;
+}
+
+.enablePaint {
+  background-color: var(--accent-color);
 }
 
 .post-meta-block {
