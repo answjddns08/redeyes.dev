@@ -12,6 +12,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// TODO: make cache for frontMatter and tags(set) for faster response time
+
 type sqliteStore struct {
 	DB *sql.DB
 	Mu sync.Mutex
@@ -316,6 +318,9 @@ func (s *sqliteStore) ListTags() ([]string, error) {
 			fmt.Printf("failed to close rows: %v\n", err)
 		}
 	}()
+
+	// TODO: array consistency sucks, maybe need sorting? (or don't care about order cuz cache makes consistency)
+	// wait, how consistency is not garanteed?
 
 	tags := make(map[string]struct{})
 	for rows.Next() {

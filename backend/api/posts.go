@@ -62,7 +62,6 @@ func (api *API) handlePost(w http.ResponseWriter, r *http.Request) {
 
 	if strings.Contains(slug, "/") {
 		WriteError(w, http.StatusNotFound, "post_not_found")
-		fmt.Printf("WARN Invalid post folder requested: %s\n", slug)
 		return
 	}
 
@@ -76,14 +75,14 @@ func (api *API) handlePost(w http.ResponseWriter, r *http.Request) {
 		Folder   string   `json:"folder"`
 		Title    string   `json:"title"`
 		Date     string   `json:"date"`
-		Tag      []string `json:"tag"`
+		Tags     []string `json:"tags"`
 		Content  string   `json:"content"`
 		CoverImg string   `json:"coverImg,omitempty"`
 	}{
 		Folder:   post.Slug,
 		Title:    post.Title,
 		Date:     post.Date,
-		Tag:      post.Tags,
+		Tags:     post.Tags,
 		Content:  post.Content,
 		CoverImg: post.Cover,
 	}
@@ -201,70 +200,90 @@ func convertImagePath(markdown string, postTitle string, imageMap map[string]str
 }
 
 func filterPosts(posts []frontMatter, search string) []frontMatter {
+	search = strings.TrimSpace(search)
 	if search == "" {
 		return posts
 	}
 
-	// TODO : seperate tag search and keyword search(keyword affects title, summary)
-	// and unite two search results (OR condition) and remove duplicates
+	rawTokens := strings.Split(search, ",") // split by comma to allow multiple search terms
+	var targetTags []string
+	var targetKeywords []string
 
-	// 1. 태그 검색 모드 확인
-	if tagStrings, isFound := strings.CutPrefix(search, "#"); isFound {
-		tags := strings.Split(tagStrings, ",")
+	for _, token := range rawTokens {
+		token = strings.TrimSpace(token)
+		if token == "" {
+			continue
+		}
 
-		filtered := []frontMatter{}
-		for _, post := range posts {
-			// 각 태그가 포스트의 태그 배열에 포함되는지 확인 (AND 조건)
-			match := true
-			for _, tag := range tags {
-				tag = strings.TrimSpace(tag)
-				if len(tag) == 0 {
-					continue
-				}
-				found := false
+		if tag, ok := strings.CutPrefix(token, "#"); ok {
+			tag = strings.TrimSpace(tag)
+			if tag != "" {
+				targetTags = append(targetTags, tag)
+			}
+		} else {
+			// if normal keyword, convert to lowercase for case-insensitive matching
+			targetKeywords = append(targetKeywords, strings.ToLower(token))
+		}
+	}
+
+	if len(targetTags) == 0 && len(targetKeywords) == 0 {
+		return posts
+	}
+
+	filtered := []frontMatter{}
+	seen := make(map[string]bool) // map by post slug to avoid duplicates
+
+	for _, post := range posts {
+		isMatch := false
+
+		// 태그 검색 조건 (OR 결합: 검색 태그 중 하나라도 일치하면 통과)
+		if len(targetTags) > 0 {
+			for _, searchTag := range targetTags {
 				for _, postTag := range post.Tags {
-					if strings.EqualFold(postTag, tag) {
-						found = true
+					if strings.EqualFold(postTag, searchTag) {
+						isMatch = true
 						break
 					}
 				}
-				if !found {
-					match = false
+				if isMatch {
 					break
 				}
 			}
-			if match {
+		}
+
+		// 키워드 검색 조건 (OR 결합: 제목, 요약, 또는 태그 텍스트 부분 포함 여부)
+		if !isMatch && len(targetKeywords) > 0 {
+			titleLower := strings.ToLower(post.Title)
+			summaryLower := strings.ToLower(post.Summary)
+
+			for _, keyword := range targetKeywords {
+				// 제목이나 요약에 포함되는지 확인
+				if strings.Contains(titleLower, keyword) || strings.Contains(summaryLower, keyword) {
+					isMatch = true
+					break
+				}
+
+				// 태그 자체에 키워드가 부분 포함되는지 확인
+				for _, postTag := range post.Tags {
+					if strings.Contains(strings.ToLower(postTag), keyword) {
+						isMatch = true
+						break
+					}
+				}
+				if isMatch {
+					break
+				}
+			}
+		}
+
+		// 결과 수집 및 중복 제거
+		if isMatch {
+			if !seen[post.Slug] {
+				seen[post.Slug] = true
 				filtered = append(filtered, post)
 			}
 		}
-		return filtered
 	}
 
-	// 2. 키워드 검색 모드 (일반 검색)
-	keyword := strings.ToLower(search)
-	filtered := []frontMatter{}
-	for _, post := range posts {
-		// 제목, 요약, 태그에 키워드가 포함되는지 확인 (OR 조건)
-		titleLower := strings.ToLower(post.Title)
-		summaryLower := strings.ToLower(post.Summary)
-
-		match := strings.Contains(titleLower, keyword) ||
-			strings.Contains(summaryLower, keyword)
-
-		// 태그 검색도 키워드로 수행할 수 있도록 처리
-		if !match {
-			for _, tag := range post.Tags {
-				tagLower := strings.ToLower(tag)
-				if strings.Contains(tagLower, keyword) {
-					match = true
-					break
-				}
-			}
-		}
-
-		if match {
-			filtered = append(filtered, post)
-		}
-	}
 	return filtered
 }
