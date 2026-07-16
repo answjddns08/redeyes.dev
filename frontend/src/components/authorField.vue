@@ -12,6 +12,9 @@
         <a href="https://github.com/answjddns08" target="_blank">
           <font-awesome-icon :icon="['fab', 'github']" class="icon" size="2xl" />
         </a>
+        <a href="mailto:answjddns0808@gmail.com">
+          <font-awesome-icon icon="fa-solid fa-envelope" class="icon" size="2xl" />
+        </a>
       </div>
     </div>
   </div>
