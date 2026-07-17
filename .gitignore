@@ -22,7 +22,7 @@ images/
 *.service
 
 # backend build file
-backend
+/backend/backend
 
 /cypress/videos/
 /cypress/screenshots/

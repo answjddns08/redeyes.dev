@@ -80,6 +80,11 @@ func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: use NextPart to handle files not loading all into memory at once
 
+	// multpartData structure
+	// - slug: string
+	// - markdown: file
+	// - images: file[]
+
 	slugValues := r.MultipartForm.Value["slug"]
 	if len(slugValues) == 0 || strings.TrimSpace(slugValues[0]) == "" {
 		WriteError(w, http.StatusBadRequest, "missing_slug")
@@ -170,6 +175,8 @@ func (api *API) handlePostDown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// only need param(slug) from URL, no body needed
+
 	if !api.requireAuth(r) {
 		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
@@ -194,7 +201,7 @@ func (api *API) handlePostDown(w http.ResponseWriter, r *http.Request) {
 
 func (api *API) requireAuth(r *http.Request) bool {
 	if api.adminToken == "" {
-		return true
+		return false
 	}
 
 	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))

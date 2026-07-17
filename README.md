@@ -14,7 +14,7 @@ The frontend is a Vue 3 single-page app, and the backend is a Go API that stores
 - Filter posts by tags and open posts by slug.
 - View post detail pages with headings, next/previous navigation, and SEO-friendly structured data.
 - Toggle light and dark themes, with the preference saved in local storage.
-- Upload posts with images and delete posts through authenticated backend endpoints. (you can upload with making obsidian custom export plugin)
+- Upload posts with images and delete posts through authenticated backend endpoints.
 - Serve post images directly from the backend.
 
 ## Stack
@@ -68,6 +68,9 @@ The backend exposes the following endpoints:
 
 Uploads can be protected with `BLOG_ADMIN_TOKEN`. If the token is set, requests must send `Authorization: Bearer <token>`.
 The token is stored in `backend/.env` and is not included in this repository.
+
+I made delete and upload endpoints to make a post with obsidian and publish it with custom plugin.
+(if you want to use it, you can set the token in `.env` file like below, and check the `backend/api/handler.go` for more details)
 
 ```
 BLOG_ADMIN_TOKEN=your-token-here
