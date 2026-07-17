@@ -14,12 +14,15 @@ dist-ssr
 coverage
 *.local
 
-posts/
-
 cache/
 images/
 
 .env
+
+*.service
+
+# backend build file
+backend
 
 /cypress/videos/
 /cypress/screenshots/

@@ -1,140 +1,119 @@
-# Kellog Blog 📝
+# Redeyes.dev
 
-Vue.js 3와 Express.js로 구축한 개인 블로그 프로젝트입니다. 마크다운 기반의 포스트 작성과 태그 시스템, 다크 모드를 지원하는 간단한 블로그입니다
+[redeyes.dev](https://blog.redeyes.dev) is my personal blog, built with [Vue.js](https://vuejs.org) and [Go](https://go.dev/).
 
-## 🚀 주요 기능
+## Overview
 
-- **마크다운 기반 포스트**: `.md` 파일로 블로그 포스트 작성
-- **태그 시스템**: 포스트 카테고리화 및 필터링
-- **검색 기능**: 포스트 제목, 내용 기반 검색
-- **다크 모드**: 시스템 설정 감지 및 수동 토글
-- **목차 기능**: 포스트의 헤딩 기반 네비게이션
-- **캐싱 시스템**: localStorage를 활용한 성능 최적화
+This repository contains both the frontend and backend for a self-hosted blog.
+The frontend is a Vue 3 single-page app, and the backend is a Go API that stores rendered posts in SQLite.
 
-## 🛠 기술 스택
+## Features
+
+- Search posts by keyword or tag from the top navigation bar.
+- Browse posts with infinite scroll on the home page.
+- Filter posts by tags and open posts by slug.
+- View post detail pages with headings, next/previous navigation, and SEO-friendly structured data.
+- Toggle light and dark themes, with the preference saved in local storage.
+- Upload posts with images and delete posts through authenticated backend endpoints. (you can upload with making obsidian custom export plugin)
+- Serve post images directly from the backend.
+
+## Stack
 
 ### Frontend
-- **Vue.js 3** - Composition API
-- **Vite** - 빌드 도구
-- **Vue Router** - SPA 라우팅
-- **Pinia** - 상태 관리
-- **Tailwind CSS** - 스타일링
-- **Font Awesome** - 아이콘
-- **Axios** - HTTP 클라이언트
+
+- Vue 3
+- Vue Router
+- Pinia
+- Tailwind CSS 4
+- Axios
+- Font Awesome
 
 ### Backend
-- **Node.js** - 런타임
-- **Express.js** - 웹 프레임워크
-- **Markdown-it** - 마크다운 파싱
-- **CORS** - Cross-Origin 지원
 
-## 📁 프로젝트 구조
+- Go 1.26
+- SQLite
+- Goldmark for Markdown rendering
+
+### Deployment
+
+- Self-hosted
+- Raspberry Pi 5 (4GB)
+- Raspberry Pi OS Lite
+- Nginx reverse proxy
+
+## Project Structure
+
+- `frontend/` contains the Vue app.
+- `backend/` contains the Go API and SQLite store.
+- `nginx/` contains the sample reverse proxy configuration.
+
+## Frontend Behavior
+
+The home page loads posts and tags from the backend, then caches them in `localStorage` for faster repeat visits.
+The post list supports query-based search, tag filtering, and incremental loading as you scroll.
+
+The post detail page renders Markdown content, shows post metadata, and links to neighboring posts.
+
+## Backend API
+
+The backend exposes the following endpoints:
+
+- `GET /api/posts` returns the post list.
+- `GET /api/posts?search=...` filters posts by keyword or tag.
+- `GET /api/posts/:slug` returns a single post.
+- `GET /api/tags` returns the unique tag list.
+- `POST /api/upload` uploads a post and its images.
+- `DELETE /api/posts/:slug` deletes a post and its stored images.
+- `GET /api/posts/images/...` serves uploaded post images.
+
+Uploads can be protected with `BLOG_ADMIN_TOKEN`. If the token is set, requests must send `Authorization: Bearer <token>`.
+The token is stored in `backend/.env` and is not included in this repository.
 
 ```
-├── frontend/          # Vue.js 클라이언트
-│   ├── src/
-│   │   ├── components/    # 재사용 가능한 컴포넌트
-│   │   ├── stores/        # Pinia 상태 관리
-│   │   ├── views/         # 페이지 컴포넌트
-│   │   └── router/        # 라우팅 설정
-│   └── public/            # 정적 파일
-├── backend/           # Express.js 서버
-│   ├── controller/        # API 컨트롤러
-│   ├── functions/         # 유틸리티 함수
-│   ├── posts/            # 마크다운 포스트 파일
-│   └── router/           # API 라우트
-└── README.md
+BLOG_ADMIN_TOKEN=your-token-here
 ```
 
-## 🏃‍♂️ 시작하기
+## Data Storage
 
-### 필수 요구사항
-- Node.js 16.0+ 
-- npm 또는 yarn
+Posts are stored in SQLite under `backend/cache/blog.db`.
+When a post is uploaded, the backend parses the Markdown, stores the rendered HTML, and saves post metadata such as title, date, tags, summary, and cover image.
 
-### 설치 및 실행
+Uploaded images are stored under `backend/images/`.
 
-1. **저장소 클론**
+## Local Development
+
+### Prerequisites
+
+- Node.js
+- Go 1.26
+- Nginx, if you want to use the provided reverse proxy setup
+
+### Frontend
+
 ```bash
-git clone https://github.com/answjddns08/blogProject.git
-```
-
-2. **의존성 설치**
-```bash
-# Frontend 의존성 설치
 cd frontend
 npm install
-
-# Backend 의존성 설치
-cd ../backend
-npm install
-```
-
-3. **개발 서버 실행**
-```bash
-# Backend 서버 실행
-cd backend
-npm start
-
-# Frontend 개발 서버 실행
-cd frontend
 npm run dev
 ```
 
-4. **브라우저에서 확인**
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3000
+### Backend
 
-## 📝 포스트 작성하기
-
-1. `backend/posts/` 디렉토리에 새 폴더 생성
-2. 폴더 내에 `index.md` 파일 생성
-3. 마크다운 형식으로 포스트 작성:
-
-```markdown
----
-title: "포스트 제목"
-summary: |
-    포스트 요약
-tag:
-    - Tag1
-    - Tag2
-date: 1972/7/11
-coverImg: "cover.png"  # 선택사항
----
-
-# 포스트 내용
-
-마크다운으로 작성된 포스트 내용...
-```
-
-## 🎨 커스터마이징
-
-### 테마 색상 변경
-`frontend/src/assets/style.css`에서 CSS 변수 수정:
-
-```css
-:root {
-  --primary-color: #your-color;
-  --accent-color: #your-accent;
-  /* ... */
-}
-```
-
-### 컴포넌트 수정
-- 네비게이션: `frontend/src/components/NavBar.vue`
-- 포스트 목록: `frontend/src/components/ShowPosts.vue`
-- 태그 시스템: `frontend/src/components/showTags.vue`
-
-
-## 🚀 배포
-
-### Frontend 빌드
 ```bash
-cd frontend
-npm run build
+cd backend
+go run main.go
 ```
 
-### Production 환경
-- Frontend: `frontend/dist/` 폴더를 정적 호스팅
-- Backend: Node.js 서버 환경에 배포
+The backend listens on `:5000` by default. Set the `PORT` environment variable if you want to use a different port.
+
+## Nginx
+
+The sample configuration in `nginx/blog.conf` serves the built frontend and proxies `/api` requests to the Go backend.
+It also enables history mode routing for Vue and increases the request body limit for post uploads.
+
+## License
+
+This project is licensed under the MIT License.
+
+You are free to modify, redistribute, and use the source code commercially, including for ad-supported deployments.
+Blog content and database data are not included in this repository.
+See [LICENSE](LICENSE) for details.
