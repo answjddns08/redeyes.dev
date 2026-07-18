@@ -4,10 +4,12 @@
     <div class="author-image-container">
       <img src="/eye.png" class="profile-img" />
     </div>
-
     <div class="author-info">
       <p class="author">redeyes</p>
-      <p class="description">눈이 종종 충혈되는 고등학생</p>
+      <p class="description">
+        안녕하세요, 게임/웹 개발에 관심있는 학생 개발자 redeyes입니다. 이 블로그는 제가 공부하면서
+        만든 것, 고민한 것들을 정리해 두는 개인 공간입니다.
+      </p>
       <div class="social-links">
         <a href="https://github.com/answjddns08" target="_blank">
           <font-awesome-icon :icon="['fab', 'github']" class="icon" size="2xl" />
@@ -36,7 +38,7 @@
 .bg-image-container {
   width: 100%;
   height: 11.5rem;
-  border-radius: 0.75rem;
+  border-radius: 0.75rem 0.75rem 0 0;
   background-color: #aaaaaa;
   overflow: hidden;
 }
@@ -52,7 +54,7 @@
   height: 6rem;
   margin-top: -2.75rem;
   border-radius: 50%;
-  border: 3px solid var(--bg-secondary);
+  border: 5px solid var(--bg-secondary);
   background-color: #ed0000;
   overflow: hidden;
   z-index: 1;
@@ -66,10 +68,14 @@
 
 .author-info {
   display: flex;
+
   flex-direction: column;
-  gap: 0.5rem;
   align-items: center;
-  justify-content: center;
+
+  gap: 0.5rem;
+
+  text-align: center;
+
   margin-top: 0.35rem;
 }
 
@@ -81,9 +87,16 @@
 
 .description {
   color: var(--text-secondary);
+
   font-weight: 500;
   font-size: 0.95rem;
+
+  word-break: keep-all;
+
   margin-bottom: 0.3rem;
+
+  margin-right: 0.5rem;
+  margin-left: 0.5rem;
 }
 
 .social-links {
