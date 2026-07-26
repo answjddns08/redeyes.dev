@@ -7,8 +7,8 @@
     <div class="author-info">
       <p class="author">redeyes</p>
       <p class="description">
-        안녕하세요, 게임/웹 개발에 관심있는 학생 개발자 redeyes입니다. 이 블로그는 제가 공부하면서
-        만든 것, 고민한 것들을 정리해 두는 개인 공간입니다.
+        안녕하세요, 웹 개발에 관심있는 학생 개발자 redeyes입니다. 여기는 제가 배운 것과 고민한
+        것들을 기록한 공간입니다.
       </p>
       <div class="social-links">
         <a href="https://github.com/answjddns08" target="_blank">
@@ -33,6 +33,8 @@
   border-radius: 1rem;
   background-color: var(--bg-secondary);
   padding-bottom: 1rem;
+
+  width: 22.5rem;
 }
 
 .bg-image-container {
@@ -108,7 +110,7 @@
 .icon {
   color: var(--text-secondary);
   padding: 0.5rem;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
 }
 
 .icon:hover {

@@ -165,7 +165,6 @@ button:hover {
 button.active {
   color: var(--accent-color);
   background-color: var(--shadow);
-  border-radius: 0.25rem;
   transform: translateX(0.25rem);
   font-weight: 700;
   border-left: 3px solid var(--accent-color);

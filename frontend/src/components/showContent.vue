@@ -148,7 +148,6 @@ watch(
   font-style: italic;
   background-color: var(--border-color);
   padding: 1rem;
-  border-radius: 0.5rem;
 }
 
 :deep(blockquote p) {

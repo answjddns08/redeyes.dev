@@ -93,7 +93,7 @@ function search() {
 }
 
 .buttons {
-  font-size: 1rem;
+  font-size: larger;
   font-weight: 600;
   color: var(--text-secondary);
   transition: all 0.2s ease;
