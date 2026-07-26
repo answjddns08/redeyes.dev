@@ -9,10 +9,18 @@ import (
 	"syscall"
 
 	"backend/api"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	addr := getEnv("PORT", ":5000")
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("No .env file found, using environment variables")
+		return
+	}
+
+	addr := GetEnv("PORT", ":5000")
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -34,7 +42,7 @@ func main() {
 
 	<-quit // if receiving shutdown signal, proceed to shutdown
 
-	err := apiServer.Store.DB.Close()
+	err = apiServer.Store.DB.Close()
 	if err != nil {
 		fmt.Printf("Error closing database: %v\n", err)
 	}
@@ -42,7 +50,7 @@ func main() {
 	fmt.Println("Server stopped")
 }
 
-func getEnv(key string, fallback string) string {
+func GetEnv(key string, fallback string) string {
 	value := os.Getenv(key)
 	if value == "" {
 		return fallback

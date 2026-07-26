@@ -31,6 +31,8 @@ func New(logger *log.Logger) *API {
 		adminToken: strings.TrimSpace(os.Getenv("BLOG_ADMIN_TOKEN")),
 	}
 
+	fmt.Printf("Admin token: %s\n", api.adminToken) // For debugging purposes, remove in production
+
 	return api
 }
 
