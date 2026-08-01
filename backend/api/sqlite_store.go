@@ -42,6 +42,8 @@ func openSQLiteStore() (*sqliteStore, error) {
 		return nil, err
 	}
 
+	dbPath = "file:" + dbPath + "?cache=shared&mode=rwc&_journal_mode=WAL&_busy_timeout=5000&_synchronous=NORMAL"
+
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, err
