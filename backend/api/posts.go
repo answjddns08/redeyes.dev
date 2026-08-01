@@ -11,9 +11,13 @@ import (
 
 	"github.com/yuin/goldmark"
 	meta "github.com/yuin/goldmark-meta"
+	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/renderer/html"
+	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 )
 
 // --- Data Structures ---
@@ -105,27 +109,134 @@ func (api *API) handleTags(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, tags)
 }
 
+// --- Obsidian-style image extension (![[file|width]]) ---
+//
+// Renders embeds like ![[image.png|350]] as
+// <img src="/api/posts/images/..." width="..." /> during markdown parsing,
+// instead of regex-replacing the raw text before parsing (which scanned the
+// document twice). The parser, AST node and renderer are wired up via the
+// wikiImageExtension below.
+
+var wikiImageKind = ast.NewNodeKind("WikiImage")
+
+var wikiImageRe = regexp.MustCompile(`^!\[\[([^|\]]+)(?:\|([0-9]+))?\]\]`)
+
+// wikiImage is a custom inline AST node for ![[file|width]] embeds.
+type wikiImage struct {
+	ast.BaseInline
+	Destination string
+	Width       string
+}
+
+// Kind implements ast.Node.
+func (n *wikiImage) Kind() ast.NodeKind { return wikiImageKind }
+
+// Dump implements ast.Node.
+func (n *wikiImage) Dump(source []byte, level int) {
+	m := map[string]string{"Destination": n.Destination}
+	if n.Width != "" {
+		m["Width"] = n.Width
+	}
+	ast.DumpHelper(n, source, level, m, nil)
+}
+
+// wikiImageParser matches the wiki syntax at the current reader position and
+// produces a wikiImage node, resolving image names via the upload's image map.
+type wikiImageParser struct {
+	postDir  string
+	imageMap map[string]string
+}
+
+// Trigger implements parser.InlineParser.
+func (p *wikiImageParser) Trigger() []byte { return []byte{'!'} }
+
+// Parse implements parser.InlineParser.
+func (p *wikiImageParser) Parse(parent ast.Node, block text.Reader, pc parser.Context) ast.Node {
+	line, _ := block.PeekLine()
+	m := wikiImageRe.FindSubmatch(line)
+	if m == nil {
+		// Not a wiki image; let the other parsers (e.g. the link parser for
+		// standard ![alt](url) images) handle this position.
+		return nil
+	}
+
+	fileName := string(m[1])
+	width := ""
+	if len(m[2]) > 0 {
+		width = string(m[2])
+	}
+
+	storedName := p.postDir + "-" + fileName
+	if mapped, ok := p.imageMap[fileName]; ok && mapped != "" {
+		storedName = mapped
+	}
+
+	img := &wikiImage{
+		Destination: path.Join("/api/posts/images", url.PathEscape(storedName)),
+		Width:       width,
+	}
+	block.Advance(len(m[0]))
+	return img
+}
+
+// wikiImageRenderer writes the wikiImage node as an <img> tag.
+type wikiImageRenderer struct{}
+
+// RegisterFuncs implements renderer.NodeRenderer.
+func (r *wikiImageRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
+	reg.Register(wikiImageKind, r.renderWikiImage)
+}
+
+func (r *wikiImageRenderer) renderWikiImage(w util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
+	if !entering {
+		return ast.WalkContinue, nil
+	}
+	img := node.(*wikiImage)
+
+	_, _ = w.WriteString(`<img src="`)
+	_, _ = w.Write(util.EscapeHTML([]byte(img.Destination)))
+	_, _ = w.WriteString(`"`)
+	if img.Width != "" {
+		fmt.Printf(" width: %s\n", img.Width)
+	}
+	_, _ = w.WriteString(" />")
+	return ast.WalkSkipChildren, nil
+}
+
+// wikiImageExtension wires the parser and renderer into goldmark.
+type wikiImageExtension struct {
+	postDir  string
+	imageMap map[string]string
+}
+
+// Extend implements goldmark.Extender.
+func (e *wikiImageExtension) Extend(md goldmark.Markdown) {
+	// Priority 150 < the link parser's 200, so wiki images are matched before
+	// the standard image/link syntax.
+	md.Parser().AddOptions(
+		parser.WithInlineParsers(util.Prioritized(&wikiImageParser{postDir: e.postDir, imageMap: e.imageMap}, 150)),
+	)
+	md.Renderer().AddOptions(
+		renderer.WithNodeRenderers(util.Prioritized(&wikiImageRenderer{}, 0)),
+	)
+}
+
 func parseMarkdown(raw string, postDir string, imageMap map[string]string) (frontMatter, string, error) {
 	// HTML 태그 입력을 허용하도록 goldmark 설정 (Unsafe 지정을 안 하면 <img> 태그가 렌더링되지 않고 생략됨)
 	md := goldmark.New(
-		goldmark.WithExtensions(meta.Meta, extension.Strikethrough),
+		goldmark.WithExtensions(meta.Meta, extension.Strikethrough, &wikiImageExtension{postDir: postDir, imageMap: imageMap}),
 		goldmark.WithRendererOptions(
 			html.WithUnsafe(),
 			html.WithHardWraps(),
 		),
 	)
 
-	// TODO: 나중에 goldmark 리졸버를 커스텀하도록 하는 편이 더 좋을 듯?
-	// 이 방식은 파일을 2번 스캔해서 비효율적이니
-
-	imagePathProcessed := convertImagePath(raw, postDir, imageMap)
-
 	// 컨택스트 프론트매터 담는 변수
 	context := parser.NewContext()
 	var htmlBuf bytes.Buffer
 
 	// convert markdown to HTML and extract front matter (and return it as a map)
-	if err := md.Convert([]byte(imagePathProcessed), &htmlBuf, parser.WithContext(context)); err != nil {
+	if err := md.Convert([]byte(raw), &htmlBuf, parser.WithContext(context)); err != nil {
 		return frontMatter{}, "", err
 	}
 
@@ -172,31 +283,6 @@ func parseMarkdown(raw string, postDir string, imageMap map[string]string) (fron
 	}
 
 	return fm, htmlBuf.String(), nil
-}
-
-func convertImagePath(markdown string, postTitle string, imageMap map[string]string) string {
-	imageDir := "/api/posts/images" // 이미지가 저장된 디렉토리 이름 (posts/ 폴더 내)
-
-	re := regexp.MustCompile(`!\[\[([^|\]]+)(?:\|([0-9]+))?\]\]`)
-
-	return re.ReplaceAllStringFunc(markdown, func(match string) string {
-		submatches := re.FindStringSubmatch(match)
-		fileName := submatches[1]                // ex: "image.png"
-		width := submatches[2]                   // ex: "350" (if not exist"")
-		storedName := postTitle + "-" + fileName // ex: postTitle-image.png
-
-		if imageMap != nil && imageMap[fileName] != "" {
-			storedName = imageMap[fileName]
-		}
-
-		// url encooding image name to handle special characters and spaces
-		escapedName := url.PathEscape(storedName)
-
-		if width != "" {
-			return fmt.Sprintf(`<img src="%s" width="%s" />`, path.Join(imageDir, escapedName), width)
-		}
-		return fmt.Sprintf(`<img src="%s" />`, path.Join(imageDir, escapedName))
-	})
 }
 
 func filterPosts(posts []frontMatter, search string) []frontMatter {

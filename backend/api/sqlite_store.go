@@ -6,17 +6,25 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
 	_ "modernc.org/sqlite"
 )
 
-// TODO: make cache for frontMatter and tags(set) for faster response time
-
 type sqliteStore struct {
 	DB *sql.DB
-	Mu sync.Mutex
+	// Mu guards cache access and serializes writes. Reads (ListPosts/ListTags)
+	// take RLock so many readers can run concurrently, while writes
+	// (SavePost/DeletePost) take Lock so only one writer is active at a time.
+	Mu sync.RWMutex
+
+	// In-memory caches for the read-heavy list/tags endpoints; nil means not
+	// loaded. Invalidated on every write. DB writes stay serialized via the
+	// write lock, so cached data is always consistent with the database.
+	postsCache []frontMatter
+	tagsCache  []string
 }
 
 type storedPost struct {
@@ -180,6 +188,10 @@ func (s *sqliteStore) SavePost(post frontMatter, rawMarkdown, renderedHTML strin
 		return err
 	}
 
+	// invalidate caches so the next read reflects the new post
+	s.postsCache = nil
+	s.tagsCache = nil
+
 	return nil
 }
 
@@ -236,6 +248,10 @@ func (s *sqliteStore) DeletePost(slug string) error {
 		return err
 	}
 
+	// invalidate caches so the next read reflects the deletion
+	s.postsCache = nil
+	s.tagsCache = nil
+
 	// deleting associated images from the image directory
 	imageDir, err := imageDirPath()
 	if err != nil {
@@ -268,6 +284,21 @@ func (s *sqliteStore) DeletePost(slug string) error {
 }
 
 func (s *sqliteStore) ListPosts() ([]frontMatter, error) {
+	s.Mu.RLock()
+	if s.postsCache != nil {
+		cached := s.postsCache
+		s.Mu.RUnlock()
+		return cached, nil
+	}
+	s.Mu.RUnlock()
+
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	// another reader may have populated the cache while we waited for the lock
+	if s.postsCache != nil {
+		return s.postsCache, nil
+	}
+
 	rows, err := s.DB.Query(`SELECT slug, title, date, tags, cover_img, summary FROM posts ORDER BY date DESC, slug ASC`)
 	if err != nil {
 		return nil, err
@@ -290,6 +321,7 @@ func (s *sqliteStore) ListPosts() ([]frontMatter, error) {
 		posts = append(posts, post)
 	}
 
+	s.postsCache = posts
 	return posts, nil
 }
 
@@ -308,6 +340,21 @@ func (s *sqliteStore) GetPost(slug string) (storedPost, error) {
 
 // ListTags retrieves a list of unique tags from the posts in the SQLite database.
 func (s *sqliteStore) ListTags() ([]string, error) {
+	s.Mu.RLock()
+	if s.tagsCache != nil {
+		cached := s.tagsCache
+		s.Mu.RUnlock()
+		return cached, nil
+	}
+	s.Mu.RUnlock()
+
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	// another reader may have populated the cache while we waited for the lock
+	if s.tagsCache != nil {
+		return s.tagsCache, nil
+	}
+
 	rows, err := s.DB.Query(`SELECT tags FROM posts`)
 	if err != nil {
 		return nil, err
@@ -319,9 +366,8 @@ func (s *sqliteStore) ListTags() ([]string, error) {
 		}
 	}()
 
-	// TODO: array consistency sucks, maybe need sorting? (or don't care about order cuz cache makes consistency)
-	// wait, how consistency is not garanteed?
-
+	// Map iteration order is random, so sort the result for a deterministic
+	// order across calls (before this the array order was not consistent).
 	tags := make(map[string]struct{})
 	for rows.Next() {
 		var tagsJSON string
@@ -343,6 +389,9 @@ func (s *sqliteStore) ListTags() ([]string, error) {
 		tagArr = append(tagArr, tag)
 	}
 
+	sort.Strings(tagArr)
+
+	s.tagsCache = tagArr
 	return tagArr, nil
 }
 

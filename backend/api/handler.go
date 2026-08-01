@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 )
@@ -73,33 +72,18 @@ func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := r.ParseMultipartForm(128 << 20) // Limit to 128 MB
+	// Stream multipart parts one by one (via NextPart) instead of loading the
+	// whole form into memory with ParseMultipartForm. Image files are written
+	// straight to temp files on disk, never buffered in memory. The request
+	// body is still hard-capped at 128 MB.
+	r.Body = http.MaxBytesReader(w, r.Body, 128<<20)
+
+	mr, err := r.MultipartReader()
 	if err != nil {
-		fmt.Println("Error parsing multipart form:", err)
-		http.Error(w, "failed_to_parse_form", http.StatusBadRequest)
+		api.Logger.Printf("failed to parse multipart form: %v", err)
+		WriteError(w, http.StatusBadRequest, "failed_to_parse_form")
 		return
 	}
-
-	// TODO: use NextPart to handle files not loading all into memory at once
-
-	// multpartData structure
-	// - slug: string
-	// - markdown: file
-	// - images: file[]
-
-	slugValues := r.MultipartForm.Value["slug"]
-	if len(slugValues) == 0 || strings.TrimSpace(slugValues[0]) == "" {
-		WriteError(w, http.StatusBadRequest, "missing_slug")
-		return
-	}
-	slugName := strings.TrimSpace(slugValues[0])
-
-	markdownValues := r.MultipartForm.Value["markdown"]
-	if len(markdownValues) == 0 {
-		WriteError(w, http.StatusBadRequest, "missing_markdown")
-		return
-	}
-	mdFile := markdownValues[0]
 
 	imageDir, err := imageDirPath()
 	if err != nil {
@@ -107,18 +91,119 @@ func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusInternalServerError, "failed_to_resolve_image_dir")
 		return
 	}
-
 	if err := os.MkdirAll(imageDir, 0o755); err != nil {
 		api.Logger.Printf("failed to create image folder: %v", err)
 		WriteError(w, http.StatusInternalServerError, "failed_to_create_folder")
 		return
 	}
 
-	imageFiles := r.MultipartForm.File["images"]
-	imageNameMap := make(map[string]string, len(imageFiles))
-	for index, fileHeader := range imageFiles {
-		storedName := fmt.Sprintf("%s_%02d_%s", slugName, index+1, filepath.Base(fileHeader.Filename))
-		imageNameMap[fileHeader.Filename] = storedName
+	// multpartData structure
+	// - slug: string
+	// - markdown: file
+	// - images: file[]
+
+	// Image parts are buffered into temp files first so the images can be
+	// streamed to disk in any order, then renamed to their final names once
+	// the slug and markdown fields have all been read.
+	type pendingImage struct {
+		origName   string
+		tmpPath    string
+		storedName string
+	}
+	var pendingImages []pendingImage
+	cleanupPending := func() {
+		for _, img := range pendingImages {
+			if err := os.Remove(img.tmpPath); err != nil && !os.IsNotExist(err) {
+				api.Logger.Printf("failed to clean up temp image %s: %v", img.tmpPath, err)
+			}
+		}
+	}
+	defer cleanupPending()
+
+	var slugName string
+	var mdFile string
+	sawMarkdown := false
+
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			api.Logger.Printf("failed to read multipart part: %v", err)
+			WriteError(w, http.StatusBadRequest, "failed_to_parse_form")
+			return
+		}
+
+		switch part.FormName() {
+		case "slug":
+			data, readErr := io.ReadAll(part)
+			_ = part.Close()
+			if readErr != nil {
+				api.Logger.Printf("failed to read slug field: %v", readErr)
+				WriteError(w, http.StatusBadRequest, "failed_to_parse_form")
+				return
+			}
+			slugName = strings.TrimSpace(string(data))
+
+		case "markdown":
+			data, readErr := io.ReadAll(part)
+			_ = part.Close()
+			if readErr != nil {
+				api.Logger.Printf("failed to read markdown field: %v", readErr)
+				WriteError(w, http.StatusBadRequest, "failed_to_parse_form")
+				return
+			}
+			sawMarkdown = true
+			mdFile = string(data)
+
+		case "images":
+			fileName := part.FileName()
+			if fileName == "" {
+				_, _ = io.Copy(io.Discard, part)
+				_ = part.Close()
+				continue
+			}
+
+			tmpFile, createErr := os.CreateTemp(imageDir, ".upload-*")
+			if createErr != nil {
+				_, _ = io.Copy(io.Discard, part)
+				_ = part.Close()
+				api.Logger.Printf("failed to create temp image file: %v", createErr)
+				WriteError(w, http.StatusInternalServerError, "failed_to_create_image_file")
+				return
+			}
+			_, copyErr := io.Copy(tmpFile, part)
+			_ = part.Close()
+			closeErr := tmpFile.Close()
+			if copyErr != nil || closeErr != nil {
+				_ = os.Remove(tmpFile.Name())
+				api.Logger.Printf("failed to stream image %s: %v", fileName, copyErr)
+				WriteError(w, http.StatusInternalServerError, "failed_to_save_image")
+				return
+			}
+			pendingImages = append(pendingImages, pendingImage{origName: fileName, tmpPath: tmpFile.Name()})
+
+		default:
+			_, _ = io.Copy(io.Discard, part)
+			_ = part.Close()
+		}
+	}
+
+	if slugName == "" {
+		WriteError(w, http.StatusBadRequest, "missing_slug")
+		return
+	}
+	if !sawMarkdown {
+		WriteError(w, http.StatusBadRequest, "missing_markdown")
+		return
+	}
+
+	imageNameMap := make(map[string]string, len(pendingImages))
+	for i := range pendingImages {
+		storedName := fmt.Sprintf("%s_%02d_%s", slugName, i+1, filepath.Base(pendingImages[i].origName))
+		pendingImages[i].storedName = storedName
+		imageNameMap[pendingImages[i].origName] = storedName
 	}
 
 	finalPost, htmlBody, err := parseMarkdown(mdFile, slugName, imageNameMap)
@@ -129,34 +214,10 @@ func (api *API) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	finalPost.Slug = slugName
 
-	for _, fileHeader := range imageFiles {
-		file, err := fileHeader.Open()
-		if err != nil {
-			WriteError(w, http.StatusInternalServerError, "failed_to_open_image")
-			return
-		}
-		defer func() {
-			err := file.Close()
-			if err != nil {
-				api.Logger.Printf("failed to close image file %s: %v", fileHeader.Filename, err)
-			}
-		}()
-
-		storedName := imageNameMap[fileHeader.Filename]
-		dst, err := os.Create(path.Join(imageDir, storedName))
-		if err != nil {
-			WriteError(w, http.StatusInternalServerError, "failed_to_create_image_file")
-			return
-		}
-		defer func() {
-			err := dst.Close()
-			if err != nil {
-				api.Logger.Printf("failed to close destination image file %s: %v", storedName, err)
-			}
-		}()
-
-		_, err = io.Copy(dst, file)
-		if err != nil {
+	// Move streamed temp files to their final names, then persist the post.
+	for _, img := range pendingImages {
+		if err := os.Rename(img.tmpPath, filepath.Join(imageDir, img.storedName)); err != nil {
+			api.Logger.Printf("failed to finalize image %s: %v", img.origName, err)
 			WriteError(w, http.StatusInternalServerError, "failed_to_save_image")
 			return
 		}
