@@ -69,7 +69,7 @@ func withCORS(next http.Handler) http.Handler {
 	allowedOrigins := map[string]struct{}{
 		"http://localhost:5173":     {},
 		"https://blog.redeyes.dev":  {},
-		"http://192.168.35.11:5173": {},
+		"http://192.168.45.11:5173": {},
 		"app://obsidian.md":         {}, // for obsidian plugin
 	}
 

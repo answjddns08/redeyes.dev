@@ -197,7 +197,7 @@ func (r *wikiImageRenderer) renderWikiImage(w util.BufWriter, source []byte, nod
 	_, _ = w.Write(util.EscapeHTML([]byte(img.Destination)))
 	_, _ = w.WriteString(`"`)
 	if img.Width != "" {
-		fmt.Printf(" width: %s\n", img.Width)
+		_, _ = w.WriteString(fmt.Sprintf(` style="width: %spx;"`, img.Width))
 	}
 	_, _ = w.WriteString(" />")
 	return ast.WalkSkipChildren, nil
