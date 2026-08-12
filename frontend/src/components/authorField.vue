@@ -6,23 +6,23 @@
     </div>
     <div class="author-info">
       <p class="author">redeyes</p>
-      <p class="description">
-        안녕하세요, 웹 개발에 관심있는 학생 개발자 redeyes입니다. 여기는 제가 배운 것과 고민한
-        것들을 기록한 공간입니다.
-      </p>
+      <p class="description">제가 배운 것과 고민한 것들을 기록합니다</p>
       <div class="social-links">
         <a href="https://github.com/answjddns08" target="_blank">
-          <font-awesome-icon :icon="['fab', 'github']" class="icon" size="2xl" />
+          <GithubIcon class="icon" :size="48" />
         </a>
-        <a href="mailto:answjddns0808@gmail.com">
-          <font-awesome-icon icon="fa-solid fa-envelope" class="icon" size="2xl" />
+        <a href="mailto:contact@redeyes.dev">
+          <Mail class="icon" :size="48" />
         </a>
       </div>
     </div>
   </div>
 </template>
 
-<script setup></script>
+<script setup>
+import { Mail } from "@lucide/vue";
+import GithubIcon from "@/components/GithubIcon.vue";
+</script>
 
 <style scoped>
 .author-field {

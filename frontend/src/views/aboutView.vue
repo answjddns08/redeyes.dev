@@ -8,10 +8,10 @@
       <!-- </p> -->
       <div class="flex gap-3">
         <a href="https://github.com/answjddns08" target="_blank">
-          <font-awesome-icon :icon="['fab', 'github']" class="icon" size="2xl" />
+          <GithubIcon class="icon" :size="48" />
         </a>
         <a href="mailto:ansgjddns0808@gmail.com">
-          <font-awesome-icon icon="fa-solid fa-envelope" class="icon" size="2xl" />
+          <Mail class="icon" :size="48" />
         </a>
       </div>
     </section>
@@ -94,6 +94,23 @@
 </template>
 
 <script setup>
+import { Mail } from "@lucide/vue";
+import GithubIcon from "@/components/GithubIcon.vue";
+import { useHead } from "@unhead/vue";
+
+useHead({
+	title: "About | redeyes dev",
+	meta: [
+		{ name: "description", content: "프론트엔드 개발자 redeyes 소개 - 개발 블로그를 운영하고 있는 사람" },
+		{ property: "og:title", content: "About | redeyes dev" },
+		{ property: "og:description", content: "프론트엔드 개발자 redeyes 소개 - 개발 블로그를 운영하고 있는 사람" },
+		{ property: "og:type", content: "profile" },
+		{ property: "og:url", content: "https://blog.redeyes.dev/about" },
+		{ property: "og:image", content: "https://blog.redeyes.dev/eye.png" },
+		{ name: "twitter:card", content: "summary" },
+	],
+});
+
 //TODO:이미지 넣기
 
 //TODO:UI조금 개선해야 할 듯?

@@ -49,7 +49,7 @@
             @click="navigateToPost(previousPost)"
             :disabled="!previousPost"
           >
-            <font-awesome-icon :icon="['fas', 'arrow-left']" size="2xl" />
+            <ArrowLeft :size="48" />
             <div class="flex flex-col">
               <span>Previous Post</span>
               <span>{{ previousPost ? previousPost.title : "No Previous Post" }}</span>
@@ -67,7 +67,7 @@
               <span>Next Post</span>
               <span>{{ nextPost ? nextPost.title : "No Next Post" }}</span>
             </div>
-            <font-awesome-icon :icon="['fas', 'arrow-right']" size="2xl" />
+            <ArrowRight :size="48" />
           </button>
         </div>
 
@@ -86,11 +86,13 @@
 
 <script setup>
 import { onMounted, ref, watch, computed } from "vue";
+import { useHead } from "@unhead/vue";
 import { useRoute, RouterLink, useRouter } from "vue-router";
 import axios from "axios";
 import { usePostStore } from "@/stores/postStore";
 import HeadingList from "@/components/HeadingList.vue";
 import ShowContent from "@/components/showContent.vue";
+import { ArrowLeft, ArrowRight } from "@lucide/vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -124,6 +126,31 @@ const previousPost = ref(null);
 const nextPost = ref(null);
 
 const headings = ref([]);
+
+// 페이지별 메타 태그 (제목/설명/OG/canonical) - 글 로드 시 반응형 업데이트
+useHead(() => {
+  const siteName = "redeyes dev";
+  const title = post.value.title ? `${post.value.title} | ${siteName}` : siteName;
+  const description = (post.value.content || "").substring(0, 160).replace(/[#*`]/g, "").trim();
+  const url = `https://blog.redeyes.dev/posts/${route.params.folder}`;
+  const image = post.value.coverImg
+    ? `https://blog.redeyes.dev/api/posts/${post.value.folder}/${post.value.coverImg}`
+    : "https://blog.redeyes.dev/eye.png";
+
+  return {
+    title,
+    meta: [
+      { name: "description", content: description },
+      { property: "og:title", content: post.value.title || siteName },
+      { property: "og:description", content: description },
+      { property: "og:type", content: "article" },
+      { property: "og:url", content: url },
+      { property: "og:image", content: image },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+    link: [{ rel: "canonical", href: url }],
+  };
+});
 
 // 구조화된 데이터 생성
 const structuredData = computed(() => {

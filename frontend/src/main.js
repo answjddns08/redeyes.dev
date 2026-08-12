@@ -3,27 +3,29 @@ import "./assets/scrollbar.css"; //custom scrollbar styles
 
 import { createApp } from "vue";
 import { createPinia } from "pinia";
-import { createHead } from "@vueuse/head";
-
-import { library } from "@fortawesome/fontawesome-svg-core";
-import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-
-import { fas } from "@fortawesome/free-solid-svg-icons";
-import { far } from "@fortawesome/free-regular-svg-icons";
-import { fab } from "@fortawesome/free-brands-svg-icons";
-
-library.add(far, fas, fab);
+import { createGtag } from "vue-gtag";
 
 import App from "./App.vue";
 import router from "./router";
+import { createHead } from "@unhead/vue/client";
 
 const app = createApp(App);
 const head = createHead();
 
-app.component("font-awesome-icon", FontAwesomeIcon);
-
 app.use(createPinia());
 app.use(router);
 app.use(head);
+
+// for Google Analytics
+if (import.meta.env.PROD) {
+  app.use(
+    createGtag({
+      tagId: "G-XMP7KKHEZN",
+      pageTracker: {
+        router,
+      },
+    }),
+  );
+}
 
 app.mount("#app");

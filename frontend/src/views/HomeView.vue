@@ -17,6 +17,7 @@
 
 <script setup>
 import { onMounted } from "vue";
+import { useHead } from "@unhead/vue";
 import ShowPosts from "@/components/ShowPosts.vue";
 import AuthorField from "@/components/authorField.vue";
 import showTags from "@/components/showTags.vue"; // Import Tag Store's component
@@ -26,12 +27,26 @@ import { usePostStore } from "@/stores/postStore";
 
 const postStore = usePostStore();
 
-// Lifecycle hook: 데이터 로딩 로직 실행
-onMounted(async () => {
-  scrollTo(0, 0); // 페이지 최상단으로 스크롤
+useHead({
+  title: "redeyes dev",
+  meta: [
+    { name: "description", content: "redeyes의 개발 블로그 - 배운 것과 고민한 것들을 기록합니다" },
+    { property: "og:title", content: "redeyes dev" },
+    {
+      property: "og:description",
+      content: "redeyes의 개발 블로그 - 배운 것과 고민한 것들을 기록합니다",
+    },
+    { property: "og:type", content: "website" },
+    { property: "og:url", content: "https://blog.redeyes.dev/" },
+    { property: "og:image", content: "https://blog.redeyes.dev/eye.png" },
+    { name: "twitter:card", content: "summary" },
+  ],
+});
 
-  // 2. Post Store 초기화 (서버 캐시 유효성 체크 우선)
-  // 이 함수가 로컬 캐시를 먼저 로드하고, 서버 타임스탬프를 기준으로 갱신 여부를 결정합니다.
+onMounted(async () => {
+  scrollTo(0, 0);
+
+  // Post Store 초기화 (서버 캐시 유효성 체크 우선)
   await postStore.initializePosts();
 });
 </script>

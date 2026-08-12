@@ -15,7 +15,14 @@
   </main>
 </template>
 
-<script setup></script>
+<script setup>
+import { useHead } from "@unhead/vue";
+
+useHead({
+	title: "404 - Page Not Found | redeyes dev",
+	meta: [{ name: "robots", content: "noindex" }],
+});
+</script>
 
 <style scoped>
 .svg-spinner {

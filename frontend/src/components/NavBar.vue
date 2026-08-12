@@ -11,7 +11,7 @@
           v-model="searchForm"
         />
         <button type="submit" class="search-btn">
-          <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
+          <Search :size="24" />
         </button>
       </form>
     </div>
@@ -20,12 +20,8 @@
       <RouterLink to="/" class="buttons">Blog</RouterLink>
       <RouterLink to="/about" class="buttons">About</RouterLink>
       <button class="theme-btn" @click="darkModeStore.toggleDarkMode" aria-label="theme toggle">
-        <font-awesome-icon
-          v-if="darkModeStore.isDarkMode"
-          :icon="['fas', 'sun']"
-          class="theme-icon"
-        />
-        <font-awesome-icon v-else :icon="['fas', 'moon']" class="theme-icon" />
+        <Sun v-if="darkModeStore.isDarkMode" class="theme-icon" />
+        <Moon v-else class="theme-icon" />
       </button>
     </div>
   </div>
@@ -34,6 +30,7 @@
 <script setup>
 import { ref } from "vue";
 import { RouterLink, useRouter } from "vue-router";
+import { Moon, Search, Sun } from "@lucide/vue";
 import { useDarkModeStore } from "@/stores/darkModeStore";
 
 const router = useRouter();
@@ -161,7 +158,8 @@ input {
 }
 
 .theme-icon {
-  font-size: 1rem;
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 .sr-only {

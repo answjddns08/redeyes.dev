@@ -19,8 +19,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           vendor: ["vue", "vue-router", "pinia"],
-          icons: ["@fortawesome/fontawesome-svg-core", "@fortawesome/vue-fontawesome"],
-          utils: ["axios", "marked"],
+          utils: ["axios"],
         },
       },
     },

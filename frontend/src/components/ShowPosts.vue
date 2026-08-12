@@ -16,11 +16,7 @@
               class="w-full h-full object-cover"
             />
             <div v-else class="placeholder-default">
-              <font-awesome-icon
-                :icon="['fas', 'image']"
-                size="2xl"
-                style="color: var(--bg-primary)"
-              />
+              <Image :size="48" style="color: var(--bg-primary)" />
             </div>
           </div>
           <div class="post-meta-block">
@@ -41,12 +37,12 @@
 
         <!-- 자동 로딩을 위한 트리거 요소 -->
         <div v-if="hasMorePosts && !isLoading" ref="autoLoadTrigger" class="auto-load-trigger">
-          <!-- 이 요소가 뷰포트에 들어오면 자동으로 더 로드 -->
+          <!-- 이 요소가 뷰포트에 들어오면 자동으로 로드 -->
         </div>
 
         <!-- 로딩 인디케이터 -->
         <div v-if="isLoading" class="loading-indicator">
-          <font-awesome-icon :icon="['fas', 'spinner']" spin size="2xl" />
+          <Loader2 :size="48" class="animate-spin" />
           <span>포스트를 불러오는 중...</span>
         </div>
 
@@ -65,7 +61,7 @@
     <!-- 맨 위로 가기 버튼 -->
     <Transition name="scroll-btn" appear>
       <button v-show="showScrollToTop" class="scroll-to-top-btn" @click="scrollToTop">
-        <font-awesome-icon :icon="['fas', 'arrow-up']" />
+        <ArrowUp :size="24" />
       </button>
     </Transition>
   </div>
@@ -75,6 +71,7 @@
 import { onMounted, ref, watch, computed, onUnmounted, nextTick } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import axios from "axios";
+import { ArrowUp, Image, Loader2 } from "@lucide/vue";
 import { usePostStore } from "@/stores/postStore";
 
 /**
@@ -144,7 +141,8 @@ function loadMorePosts() {
 
   console.log("Loading more posts...");
 
-  // 로딩 시뮬레이션 (실제로는 API 호출)
+  // TODO: 뭐야 지금 보니 API 로직 어따 빼먹음?
+
   setTimeout(() => {
     displayLimit.value = Math.min(displayLimit.value + 10, posts.value.length);
     isLoading.value = false;
@@ -173,7 +171,7 @@ function setupIntersectionObserver() {
       });
     },
     {
-      rootMargin: "200px", // 200px 전에 미리 로딩 (더 부드러운 경험)
+      rootMargin: "200px",
       threshold: 0.1,
     },
   );

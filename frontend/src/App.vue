@@ -7,6 +7,8 @@ import { useDarkModeStore } from "./stores/darkModeStore";
 
 const darkModeStore = useDarkModeStore();
 
+//TODO: index.js 최적화
+
 // 앱 시작 시 다크 모드 초기화
 onMounted(() => {
   darkModeStore.initializeDarkMode();
