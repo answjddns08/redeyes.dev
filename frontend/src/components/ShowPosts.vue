@@ -6,7 +6,7 @@
           class="postContainer"
           :to="`/posts/${post.folder}`"
           :key="post.folder"
-          v-for="post in displayedPosts"
+          v-for="post in posts"
         >
           <div class="postImageBlock" :class="{ enablePaint: !post.coverImg }">
             <img
@@ -25,7 +25,7 @@
               {{ post.summary.slice(0, 115) }}
             </span>
             <div class="post-tags">
-              <div class="tagBlock" v-for="tag in post.tag" :key="tag" v-show="tag">
+              <div class="tagBlock" v-for="tag in post.tags" :key="tag" v-show="tag">
                 {{ tag }}
               </div>
             </div>
@@ -68,9 +68,8 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch, computed, onUnmounted, nextTick } from "vue";
+import { onMounted, ref, watch, computed, onUnmounted } from "vue";
 import { RouterLink, useRoute } from "vue-router";
-import axios from "axios";
 import { ArrowUp, Image, Loader2 } from "@lucide/vue";
 import { usePostStore } from "@/stores/postStore";
 
@@ -81,28 +80,33 @@ import { usePostStore } from "@/stores/postStore";
  * @property {string} date
  * @property {string} folder
  * @property {string} coverImg
- * @property {string[]} tag
+ * @property {string[]} tags
  * @property {string} content
  */
 
 const route = useRoute();
 const postStore = usePostStore();
 
+/** 페이지당 로드할 포스트 수 (서버 limit과 동일) */
+const PAGE_SIZE = 10;
+
 // 상태 관리
-const posts = ref([]);
-const displayLimit = ref(10); // 처음에 보여줄 포스트 수
 const isLoading = ref(false);
 const showScrollToTop = ref(false);
 const autoLoadTrigger = ref(null);
 let observer = null;
 
-const displayedPosts = computed(() => {
-  return posts.value.slice(0, displayLimit.value);
-});
+// 검색 모드 전용 상태 (검색 결과는 store에 캐시하지 않음)
+const searchPosts = ref([]);
+const searchTotal = ref(0);
 
-const hasMorePosts = computed(() => {
-  return displayLimit.value < posts.value.length;
-});
+const isSearch = computed(() => !!route.query.search);
+
+// 일반 모드: store의 로드된 포스트 / 검색 모드: 로컬 결과
+const posts = computed(() => (isSearch.value ? searchPosts.value : postStore.posts));
+const total = computed(() => (isSearch.value ? searchTotal.value : postStore.total));
+
+const hasMorePosts = computed(() => posts.value.length < total.value);
 
 /**
  * return image url
@@ -113,40 +117,70 @@ const getImageUrl = (postFolder, imageName) => {
   return `https://blog.redeyes.dev/api/posts/images/${postFolder}_01_${imageName}`;
 };
 
-/** get Posts */
+/** get Posts: 첫 페이지 로드 */
 async function getPosts() {
-  if (route.query.search || !postStore.posts.length) {
-    const { data } = await axios.get("https://blog.redeyes.dev/api/posts/", {
-      params: {
-        search: route.query.search,
-      },
+  if (isSearch.value) {
+    const page = await postStore.fetchPostsPage({
+      offset: 0,
+      limit: PAGE_SIZE,
+      search: route.query.search,
     });
 
-    if (route.query.search) {
-      posts.value = data;
-      return;
+    if (page) {
+      searchPosts.value = page.posts;
+      searchTotal.value = page.total;
     } else {
-      postStore.setPosts(data);
+      searchPosts.value = [];
+      searchTotal.value = 0;
     }
+    return;
   }
 
-  posts.value = postStore.posts;
+  await postStore.initializePosts();
 }
 
-// 더 많은 포스트 로드
-function loadMorePosts() {
+/** 중복 없이 목록에 새 페이지를 append한다 (folder 기준) */
+function appendUnique(list, newPosts) {
+  const seen = new Set(list.map((p) => p.folder));
+  const merged = [...list];
+  for (const p of newPosts) {
+    if (!seen.has(p.folder)) {
+      seen.add(p.folder);
+      merged.push(p);
+    }
+  }
+  return merged;
+}
+
+// 더 많은 포스트 로드 (서버에서 다음 페이지 fetch)
+async function loadMorePosts() {
   if (isLoading.value || !hasMorePosts.value) return;
 
   isLoading.value = true;
 
-  console.log("Loading more posts...");
+  const searchAtRequest = route.query.search || null;
 
-  // TODO: 뭐야 지금 보니 API 로직 어따 빼먹음?
+  try {
+    const page = await postStore.fetchPostsPage({
+      offset: posts.value.length,
+      limit: PAGE_SIZE,
+      search: route.query.search,
+    });
 
-  setTimeout(() => {
-    displayLimit.value = Math.min(displayLimit.value + 10, posts.value.length);
+    if (!page) return;
+
+    // 요청 중 검색어가 바뀌었으면 오래된 응답이므로 버린다
+    if (searchAtRequest !== (route.query.search || null)) return;
+
+    if (isSearch.value) {
+      searchPosts.value = appendUnique(searchPosts.value, page.posts);
+      searchTotal.value = page.total;
+    } else {
+      postStore.appendPosts(page.posts, page.total);
+    }
+  } finally {
     isLoading.value = false;
-  }, 500);
+  }
 }
 
 // 맨 위로 스크롤
@@ -164,8 +198,7 @@ function setupIntersectionObserver() {
   observer = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
-        if (entry.isIntersecting && hasMorePosts.value && !isLoading.value) {
-          console.log("Auto-loading more posts...");
+        if (entry.isIntersecting) {
           loadMorePosts();
         }
       });
@@ -177,13 +210,6 @@ function setupIntersectionObserver() {
   );
 }
 
-// Observer 시작
-function startObserving() {
-  if (autoLoadTrigger.value && observer) {
-    observer.observe(autoLoadTrigger.value);
-  }
-}
-
 // Observer 정리
 function stopObserving() {
   if (observer) {
@@ -191,15 +217,17 @@ function stopObserving() {
   }
 }
 
-onMounted(() => {
-  getPosts();
-  window.addEventListener("scroll", handleScroll);
-  setupIntersectionObserver();
+// 트리거 요소가 v-if로 생기면 observe, 사라지면 정리
+watch(autoLoadTrigger, (el) => {
+  stopObserving();
+  if (el) {
+    setupIntersectionObserver();
+    observer.observe(el);
+  }
+});
 
-  // DOM이 업데이트된 후 observer 시작
-  nextTick(() => {
-    startObserving();
-  });
+onMounted(() => {
+  window.addEventListener("scroll", handleScroll);
 });
 
 onUnmounted(() => {
@@ -207,15 +235,7 @@ onUnmounted(() => {
   stopObserving();
 });
 
-// displayedPosts가 변경될 때마다 observer 재설정
-watch(displayedPosts, () => {
-  nextTick(() => {
-    stopObserving();
-    setupIntersectionObserver();
-    startObserving();
-  });
-});
-
+// 검색어/라우트 변경 시 첫 페이지 다시 로드 (immediate로 마운트 시에도 실행)
 watch(route, getPosts, { immediate: true });
 </script>
 
@@ -321,7 +341,7 @@ p {
 }
 
 .tagBlock {
-  border-width: 0.1rem;
+  border-width: 0.01rem;
   border-color: var(--text-secondary);
   color: var(--text-secondary);
   font-size: 0.84rem;
